@@ -30,13 +30,18 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 
 ### **Supported Operating Systems**
 
-**Fully Supported:**
+**Designed For:**
 - AIX 7.1, 7.2, 7.3
 - HP-UX 11i v3
 - Solaris 10, 11
 - OpenIndiana / Illumos
 
-**Note:** The script uses native Unix commands (vmstat, iostat, sar, etc.) that are typically pre-installed. For database diagnostics, database client tools (mysql, psql, sqlplus, etc.) must be installed separately.
+**Testing Status:**
+⚠️ This tool is **syntactically validated** but has not been tested on actual AIX, HP-UX, or Solaris hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools.
+
+**If you have access to these systems and would like to help test, please contact:** adrianrs@amazon.com
+
+**Note:** The script uses native Unix commands that are typically pre-installed. For database diagnostics, database client tools (mysql, psql, sqlplus, etc.) must be installed separately.
 
 ### **Installation**
 
@@ -589,21 +594,19 @@ For AWS-specific issues, the tool can automatically create support cases with di
 ## ⚠️ **Important Notes**
 
 - This tool requires root/sudo privileges
-- Disk testing may impact system performance temporarily
-- **Automatic package installation** works on Debian/Ubuntu, RHEL/CentOS/Amazon Linux, and SUSE
-- **Manual installation required** for AIX and HP-UX (instructions provided by script)
+- **Testing Status:** Syntactically validated but not tested on actual AIX/HP-UX/Solaris hardware
 - Script uses **graceful degradation** - continues with available tools if some are missing
-- Tested on Ubuntu 18.04+, RHEL 7+, Amazon Linux 2/2023, CentOS 7+, Debian 9+, Rocky Linux 8+, AlmaLinux 8+
-- Works on AWS EC2, Azure VMs, GCP Compute, on-premises, and other cloud providers
-- Uses only open-source utilities (no proprietary tools required)
+- Uses only native Unix commands (vmstat, iostat, sar, etc.)
+- Works on-premises and in cloud environments
 - **No warranty or official support provided** - use at your own discretion
+- **Community testing welcome** - contact adrianrs@amazon.com if you can help test on legacy Unix systems
 
 ---
 
 ## 📝 **Version History**
 
-- **v1.0** (January 2026) - Initial release with comprehensive forensics and AWS Support integration
+- **v1.0** (January 2026) - Initial release with AIX, HP-UX, Solaris, and Illumos support
 
 ---
 
-**Note:** This tool is provided as-is for diagnostic purposes. Always test in non-production environments first.
+**Note:** This tool is provided as-is for diagnostic purposes. If you successfully use this on AIX, HP-UX, or Solaris, please share feedback!
