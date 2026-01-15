@@ -140,25 +140,25 @@ sudo ./invoke-unix-forensics.sh
 <summary><strong>Usage</strong></summary>
 
 ```bash
-# Quick diagnostics (1-2 minutes)
+# Quick diagnostics (3 minutes)
 sudo ./invoke-unix-forensics.sh -m quick
 
-# Standard diagnostics (3-5 minutes) - recommended
+# Standard diagnostics (5-10 minutes) - recommended
 sudo ./invoke-unix-forensics.sh -m standard
 
-# Deep diagnostics with I/O testing (5-10 minutes)
+# Deep diagnostics with I/O testing (15-20 minutes)
 sudo ./invoke-unix-forensics.sh -m deep
 
-# Auto-create support case if issues found (1-2 minutes)
+# Auto-create support case if issues found (3 minutes)
 sudo ./invoke-unix-forensics.sh -m standard -s -v high
 
-# Disk-only diagnostics (5-10 minutes)
+# Disk-only diagnostics
 sudo ./invoke-unix-forensics.sh -m disk
 
-# CPU-only diagnostics  (5-10 minutes)
+# CPU-only diagnostics
 sudo ./invoke-unix-forensics.sh -m cpu
 
-# Memory-only diagnostics (5-10 minutes)
+# Memory-only diagnostics
 sudo ./invoke-unix-forensics.sh -m memory
 
 # Custom output directory
@@ -203,7 +203,7 @@ AWS Support case created: case-123456789
 ```bash
 sudo ./invoke-unix-forensics.sh -m quick
 ```
-Output: 1-2 minute assessment with automatic bottleneck detection
+Output: 3-minute assessment with automatic bottleneck detection
 
 </details>
 
@@ -603,21 +603,21 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ### **Expected Performance Impact**
 
-**Quick Mode (1-2 minutes):**
+**Quick Mode (3 minutes):**
 - CPU: <5% overhead - mostly reading /proc and system stats
 - Memory: <50MB - lightweight data collection
 - Disk I/O: Minimal - no performance testing, only stat collection
 - Network: None - passive monitoring only
 - **Safe for production** - read-only operations
 
-**Standard Mode (3-5 minutes):**
+**Standard Mode (5-10 minutes):**
 - CPU: 5-10% overhead - includes sampling and process analysis
 - Memory: <100MB - additional process tree analysis
 - Disk I/O: Minimal - no write testing, only extended stat collection
 - Network: None - passive monitoring only
 - **Safe for production** - read-only operations
 
-**Deep Mode (5-10 minutes):**
+**Deep Mode (15-20 minutes):**
 - CPU: 10-20% overhead - includes dd tests and extended sampling
 - Memory: <150MB - comprehensive process and memory analysis
 - Disk I/O: **Moderate impact** - performs dd read/write tests (1GB writes)
