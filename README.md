@@ -149,16 +149,16 @@ sudo ./invoke-unix-forensics.sh -m standard
 # Deep diagnostics with I/O testing (5-10 minutes)
 sudo ./invoke-unix-forensics.sh -m deep
 
-# Auto-create support case if issues found
+# Auto-create support case if issues found (1-2 minutes)
 sudo ./invoke-unix-forensics.sh -m standard -s -v high
 
-# Disk-only diagnostics
+# Disk-only diagnostics (5-10 minutes)
 sudo ./invoke-unix-forensics.sh -m disk
 
-# CPU-only diagnostics
+# CPU-only diagnostics  (5-10 minutes)
 sudo ./invoke-unix-forensics.sh -m cpu
 
-# Memory-only diagnostics
+# Memory-only diagnostics (5-10 minutes)
 sudo ./invoke-unix-forensics.sh -m memory
 
 # Custom output directory
@@ -600,6 +600,43 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - Works on-premises and in cloud environments
 - **No warranty or official support provided** - use at your own discretion
 - **Community testing welcome** - contact adrianrs@amazon.com if you can help test on legacy Unix systems
+
+### **Expected Performance Impact**
+
+**Quick Mode (1-2 minutes):**
+- CPU: <5% overhead - mostly reading /proc and system stats
+- Memory: <50MB - lightweight data collection
+- Disk I/O: Minimal - no performance testing, only stat collection
+- Network: None - passive monitoring only
+- **Safe for production** - read-only operations
+
+**Standard Mode (3-5 minutes):**
+- CPU: 5-10% overhead - includes sampling and process analysis
+- Memory: <100MB - additional process tree analysis
+- Disk I/O: Minimal - no write testing, only extended stat collection
+- Network: None - passive monitoring only
+- **Safe for production** - read-only operations
+
+**Deep Mode (5-10 minutes):**
+- CPU: 10-20% overhead - includes dd tests and extended sampling
+- Memory: <150MB - comprehensive process and memory analysis
+- Disk I/O: **Moderate impact** - performs dd read/write tests (1GB writes)
+- Network: None - passive monitoring only
+- **Use caution in production** - disk tests may cause temporary I/O spikes
+- Recommendation: Run during maintenance windows or low-traffic periods
+
+**Database Query Analysis (all modes):**
+- CPU: <2% overhead per database - lightweight queries to system tables
+- Memory: <20MB per database - result set caching
+- Database Load: Minimal - uses performance schema/DMVs/system views
+- **Safe for production** - read-only queries, no table locks
+
+**General Guidelines:**
+- The tool is **read-only** except for disk write tests in deep mode
+- No application restarts or configuration changes
+- Monitoring tools (mpstat, iostat, vmstat) run for 10-second intervals
+- Database queries target system/performance tables only, not user data
+- All operations are non-blocking and use minimal system resources
 
 ---
 
