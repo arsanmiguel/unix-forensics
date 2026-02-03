@@ -6,6 +6,7 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 
 **Key Features:**
 - ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
+- ✅ **Storage profiling** (disk labeling, partition schemes, boot configuration)
 - ✅ **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
 - ✅ Automated bottleneck detection
 - ✅ **Multi-Unix support** (AIX, HP-UX, Solaris, Illumos)
@@ -96,6 +97,15 @@ sudo ./invoke-unix-forensics.sh
 - Memory leak candidate identification
 - Huge pages status
 - Top memory-consuming processes
+
+**Storage Profiling:**
+- Disk labeling/partition scheme detection:
+  - **AIX**: LVM-only architecture (no MBR/GPT concept)
+  - **HP-UX**: LVM, EFI (Itanium) vs PDC (PA-RISC) boot detection
+  - **Solaris/Illumos**: SMI (VTOC) vs EFI (GPT) with >2TB warnings
+- Boot configuration (UEFI vs BIOS/OBP)
+- Filesystem type analysis (ZFS, UFS, JFS, VxFS)
+- Storage topology (LVM, VxVM, SVM, ZFS)
 
 **Disk I/O Forensics:**
 - Filesystem usage monitoring

@@ -66,37 +66,99 @@ detect_os() {
     local uname_s=$(uname -s)
     local uname_v=$(uname -v 2>/dev/null || echo "")
     
-    # Detect Unix variants
+    # Detect Unix variants with detailed version info
     if [[ "$uname_s" == "AIX" ]]; then
         DISTRO="aix"
         OS_VERSION=$(oslevel 2>/dev/null || echo "unknown")
+        OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f1)
+        # Get TL (Technology Level) for AIX
+        OS_TL=$(oslevel -s 2>/dev/null | cut -d- -f2 || echo "unknown")
+        OS_NAME="AIX $OS_VERSION (TL $OS_TL)"
+        
+        # AIX version-specific notes
+        log_info "AIX Version Details:"
+        log_info "  OS Level: $OS_VERSION"
+        log_info "  Technology Level: $OS_TL"
+        oslevel -s 2>/dev/null && log_info "  Service Pack: $(oslevel -s)"
+        
     elif [[ "$uname_s" == "HP-UX" ]]; then
         DISTRO="hpux"
         OS_VERSION=$(uname -r)
-    elif [[ "$uname_s" == "SunOS" ]]; then
-        DISTRO="solaris"
-        OS_VERSION=$(uname -r)
-        # Distinguish Solaris vs OpenSolaris/Illumos
-        if [[ -f /etc/release ]]; then
-            if grep -qi "openindiana\|illumos" /etc/release; then
-                DISTRO="illumos"
-            fi
+        OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
+        OS_NAME="HP-UX $OS_VERSION"
+        
+        # HP-UX 11.31 (11i v3) vs 11.23 (11i v2) have different tools
+        if [[ "$OS_VERSION" == "B.11.31" ]]; then
+            OS_VARIANT="11i v3"
+        elif [[ "$OS_VERSION" == "B.11.23" ]]; then
+            OS_VARIANT="11i v2"
+        elif [[ "$OS_VERSION" == "B.11.11" ]]; then
+            OS_VARIANT="11i v1"
+        else
+            OS_VARIANT="unknown"
         fi
+        log_info "HP-UX Variant: $OS_VARIANT"
+        
+    elif [[ "$uname_s" == "SunOS" ]]; then
+        OS_VERSION=$(uname -r)
+        OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
+        
+        # Distinguish Solaris versions and derivatives
+        if [[ -f /etc/release ]]; then
+            local release_info=$(cat /etc/release | head -1)
+            
+            if grep -qi "openindiana" /etc/release; then
+                DISTRO="openindiana"
+                OS_NAME="OpenIndiana $(grep -oE '[0-9]+\.[0-9]+' /etc/release | head -1)"
+            elif grep -qi "omnios" /etc/release; then
+                DISTRO="omnios"
+                OS_NAME="OmniOS $(grep -oE 'r[0-9]+' /etc/release | head -1)"
+            elif grep -qi "smartos" /etc/release; then
+                DISTRO="smartos"
+                OS_NAME="SmartOS"
+            elif grep -qi "illumos" /etc/release; then
+                DISTRO="illumos"
+                OS_NAME="Illumos"
+            elif grep -qi "Oracle Solaris 11" /etc/release; then
+                DISTRO="solaris11"
+                OS_NAME="Oracle Solaris 11"
+            elif grep -qi "Oracle Solaris 10" /etc/release; then
+                DISTRO="solaris10"
+                OS_NAME="Oracle Solaris 10"
+            else
+                DISTRO="solaris"
+                OS_NAME="$release_info"
+            fi
+        else
+            DISTRO="solaris"
+            OS_NAME="SunOS $OS_VERSION"
+        fi
+        
+        log_info "Solaris/Illumos Details:"
+        log_info "  Kernel: SunOS $OS_VERSION"
+        log_info "  Distribution: $OS_NAME"
+        
     elif [[ -f /etc/os-release ]]; then
         # Linux fallback (shouldn't happen, but just in case)
         . /etc/os-release
         DISTRO="$ID"
         OS_VERSION="$VERSION_ID"
+        OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f1)
+        OS_NAME="${PRETTY_NAME:-$ID}"
     else
         DISTRO="unknown"
         OS_VERSION="unknown"
+        OS_VERSION_MAJOR="0"
+        OS_NAME="Unknown Unix"
     fi
     
-    # Determine package manager
+    # Determine package manager based on distro and version
     case "$DISTRO" in
         aix)
-            # AIX uses installp, rpm, or yum (depending on setup)
-            if command -v yum >/dev/null 2>&1; then
+            # AIX 7.2+ often has dnf/yum from AIX Toolbox
+            if command -v dnf >/dev/null 2>&1; then
+                PACKAGE_MANAGER="dnf"
+            elif command -v yum >/dev/null 2>&1; then
                 PACKAGE_MANAGER="yum"
             elif command -v rpm >/dev/null 2>&1; then
                 PACKAGE_MANAGER="rpm"
@@ -105,19 +167,121 @@ detect_os() {
             fi
             ;;
         hpux)
-            # HP-UX uses swinstall/swlist
-            PACKAGE_MANAGER="swinstall"
+            # HP-UX uses swinstall/swlist, or SD-UX
+            if command -v swinstall >/dev/null 2>&1; then
+                PACKAGE_MANAGER="swinstall"
+            else
+                PACKAGE_MANAGER="manual"
+            fi
             ;;
-        solaris|illumos)
-            # Solaris 11+ uses pkg, older uses pkgadd
+        solaris11|openindiana|omnios)
+            # Solaris 11 and Illumos derivatives use IPS (pkg)
+            PACKAGE_MANAGER="pkg"
+            ;;
+        solaris10|solaris)
+            # Solaris 10 and older use pkgadd
             if command -v pkg >/dev/null 2>&1; then
                 PACKAGE_MANAGER="pkg"
             else
                 PACKAGE_MANAGER="pkgadd"
             fi
             ;;
+        smartos)
+            # SmartOS uses pkgin
+            PACKAGE_MANAGER="pkgin"
+            ;;
         *)
-            PACKAGE_MANAGER="none"
+            PACKAGE_MANAGER="manual"
+            ;;
+    esac
+}
+
+# Check if a command exists, with OS-specific alternatives
+check_unix_tool() {
+    local tool="$1"
+    local alt_tool=""
+    
+    # Check primary tool
+    if command -v "$tool" >/dev/null 2>&1; then
+        echo "$tool"
+        return 0
+    fi
+    
+    # OS-specific alternatives
+    case "$DISTRO" in
+        aix)
+            case "$tool" in
+                lsblk) alt_tool="lspv" ;;
+                smartctl) alt_tool="" ;;  # No direct equivalent
+                fdisk) alt_tool="lspv" ;;
+                df) alt_tool="df" ;;  # Always available
+            esac
+            ;;
+        hpux)
+            case "$tool" in
+                lsblk) alt_tool="ioscan" ;;
+                smartctl) alt_tool="" ;;
+                fdisk) alt_tool="ioscan" ;;
+                pvs) alt_tool="pvdisplay" ;;
+                vgs) alt_tool="vgdisplay" ;;
+                lvs) alt_tool="lvdisplay" ;;
+            esac
+            ;;
+        solaris*|illumos|openindiana|omnios|smartos)
+            case "$tool" in
+                lsblk) alt_tool="format" ;;
+                smartctl) alt_tool="" ;;
+                fdisk) alt_tool="format" ;;
+                pvs) alt_tool="" ;;  # Use zpool on Solaris
+            esac
+            ;;
+    esac
+    
+    if [[ -n "$alt_tool" ]] && command -v "$alt_tool" >/dev/null 2>&1; then
+        echo "$alt_tool"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Get installation instructions for a tool on this Unix
+get_install_instructions() {
+    local tool="$1"
+    
+    case "$DISTRO" in
+        aix)
+            case "$tool" in
+                smartctl)
+                    echo "Download from AIX Toolbox: https://www.ibm.com/support/pages/aix-toolbox-linux-applications"
+                    echo "  rpm -ivh smartmontools-*.rpm"
+                    ;;
+                *)
+                    echo "Install from AIX Toolbox or use: installp -aXgd /path/to/package $tool"
+                    ;;
+            esac
+            ;;
+        hpux)
+            echo "Install from HP-UX Software Depot:"
+            echo "  swinstall -s /path/to/depot $tool"
+            echo "Or download from HP Software Depot: https://h20392.www2.hpe.com/portal/swdepot/"
+            ;;
+        solaris11|openindiana|omnios)
+            echo "Install using IPS:"
+            echo "  pkg install $tool"
+            ;;
+        solaris10|solaris)
+            echo "Install using pkgadd:"
+            echo "  pkgadd -d /path/to/package $tool"
+            echo "Or use OpenCSW: https://www.opencsw.org/"
+            echo "  pkgutil -i $tool"
+            ;;
+        smartos)
+            echo "Install using pkgin:"
+            echo "  pkgin install $tool"
+            ;;
+        *)
+            echo "Please install $tool using your system's package manager"
             ;;
     esac
 }
@@ -772,6 +936,823 @@ analyze_disk_solaris() {
         echo "" | tee -a "$OUTPUT_FILE"
     fi
 }
+
+#############################################################################
+# Storage Profiling
+#############################################################################
+
+analyze_storage_profile() {
+    print_header "STORAGE PROFILING"
+    
+    log_info "Performing comprehensive storage analysis..."
+    log_info "OS: ${OS_NAME:-$DISTRO} (Version: ${OS_VERSION:-unknown})"
+    
+    # ==========================================================================
+    # CHECK AVAILABLE TOOLS FOR THIS UNIX VARIANT
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- CHECKING STORAGE TOOLS ---" | tee -a "$OUTPUT_FILE"
+    
+    local missing_tools=()
+    
+    case "$DISTRO" in
+        aix)
+            echo "AIX Storage Tools:" | tee -a "$OUTPUT_FILE"
+            for tool in lspv lsvg lslv lspath iostat; do
+                if command -v "$tool" >/dev/null 2>&1; then
+                    echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
+                else
+                    echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
+                    missing_tools+=("$tool")
+                fi
+            done
+            
+            # Check for optional tools
+            for tool in fcstat; do
+                if command -v "$tool" >/dev/null 2>&1; then
+                    echo "  [OK] $tool (optional)" | tee -a "$OUTPUT_FILE"
+                else
+                    echo "  [N/A] $tool (optional - Fibre Channel)" | tee -a "$OUTPUT_FILE"
+                fi
+            done
+            ;;
+        hpux)
+            echo "HP-UX Storage Tools:" | tee -a "$OUTPUT_FILE"
+            for tool in ioscan pvdisplay vgdisplay lvdisplay bdf iostat; do
+                if command -v "$tool" >/dev/null 2>&1; then
+                    echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
+                else
+                    echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
+                    missing_tools+=("$tool")
+                fi
+            done
+            
+            # Check for HP-UX 11i v3 specific tools
+            if [[ "$OS_VARIANT" == "11i v3" ]]; then
+                for tool in scsimgr; do
+                    if command -v "$tool" >/dev/null 2>&1; then
+                        echo "  [OK] $tool (11i v3)" | tee -a "$OUTPUT_FILE"
+                    else
+                        echo "  [N/A] $tool (11i v3 only)" | tee -a "$OUTPUT_FILE"
+                    fi
+                done
+            fi
+            ;;
+        solaris*|illumos|openindiana|omnios|smartos)
+            echo "Solaris/Illumos Storage Tools:" | tee -a "$OUTPUT_FILE"
+            for tool in zpool zfs iostat format; do
+                if command -v "$tool" >/dev/null 2>&1; then
+                    echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
+                else
+                    echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
+                    missing_tools+=("$tool")
+                fi
+            done
+            
+            # Check for optional/newer tools
+            for tool in fcinfo mpathadm diskinfo; do
+                if command -v "$tool" >/dev/null 2>&1; then
+                    echo "  [OK] $tool (optional)" | tee -a "$OUTPUT_FILE"
+                else
+                    echo "  [N/A] $tool (optional)" | tee -a "$OUTPUT_FILE"
+                fi
+            done
+            
+            # Solaris 11 specific
+            if [[ "$DISTRO" == "solaris11" ]]; then
+                for tool in croinfo; do
+                    if command -v "$tool" >/dev/null 2>&1; then
+                        echo "  [OK] $tool (Solaris 11)" | tee -a "$OUTPUT_FILE"
+                    fi
+                done
+            fi
+            ;;
+    esac
+    
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        log_warning "Some storage tools are missing. Install instructions:"
+        for tool in "${missing_tools[@]}"; do
+            get_install_instructions "$tool" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # ==========================================================================
+    # RUN OS-SPECIFIC STORAGE PROFILING
+    # ==========================================================================
+    
+    case "$DISTRO" in
+        aix)
+            analyze_storage_profile_aix
+            ;;
+        hpux)
+            analyze_storage_profile_hpux
+            ;;
+        solaris|illumos)
+            analyze_storage_profile_solaris
+            ;;
+        *)
+            log_warning "Storage profiling not implemented for ${DISTRO}"
+            ;;
+    esac
+    
+    log_success "Storage profiling completed"
+}
+
+analyze_storage_profile_aix() {
+    # ==========================================================================
+    # DISK LABELING / PARTITION SCHEME - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- DISK LABELING (AIX) ---" | tee -a "$OUTPUT_FILE"
+    
+    # AIX uses LVM exclusively - no MBR/GPT concept
+    # Disks are Physical Volumes (PVs) managed by LVM
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "AIX Disk Management:" | tee -a "$OUTPUT_FILE"
+    echo "  AIX uses Logical Volume Manager (LVM) exclusively" | tee -a "$OUTPUT_FILE"
+    echo "  Disks are 'Physical Volumes' (PVs) in 'Volume Groups' (VGs)" | tee -a "$OUTPUT_FILE"
+    echo "  No MBR/GPT partition table concept - LVM handles all disk layout" | tee -a "$OUTPUT_FILE"
+    
+    # Check boot device type
+    if command -v bootinfo >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Boot Configuration:" | tee -a "$OUTPUT_FILE"
+        local boot_type=$(bootinfo -T 2>/dev/null)
+        echo "  Boot Type: $boot_type" | tee -a "$OUTPUT_FILE"
+        
+        local boot_disk=$(bootinfo -b 2>/dev/null)
+        echo "  Boot Disk: $boot_disk" | tee -a "$OUTPUT_FILE"
+        
+        # Check if booted from SAN
+        if bootinfo -q 2>/dev/null | grep -qi "san\|fc"; then
+            echo "  Boot Source: SAN (Fibre Channel)" | tee -a "$OUTPUT_FILE"
+        else
+            echo "  Boot Source: Local Disk" | tee -a "$OUTPUT_FILE"
+        fi
+    fi
+    
+    # ==========================================================================
+    # STORAGE TOPOLOGY - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TOPOLOGY ---" | tee -a "$OUTPUT_FILE"
+    
+    # Physical Volumes
+    if command -v lspv >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Physical Volumes:" | tee -a "$OUTPUT_FILE"
+        lspv | tee -a "$OUTPUT_FILE"
+        
+        # Detailed PV info
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Physical Volume Details:" | tee -a "$OUTPUT_FILE"
+        for pv in $(lspv | awk '{print $1}'); do
+            echo "  === $pv ===" | tee -a "$OUTPUT_FILE"
+            lspv "$pv" 2>/dev/null | grep -E "PHYSICAL VOLUME|PV STATE|TOTAL PPs|FREE PPs|PP SIZE" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # Volume Groups
+    if command -v lsvg >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Volume Groups:" | tee -a "$OUTPUT_FILE"
+        lsvg | tee -a "$OUTPUT_FILE"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Volume Group Details:" | tee -a "$OUTPUT_FILE"
+        for vg in $(lsvg); do
+            echo "  === $vg ===" | tee -a "$OUTPUT_FILE"
+            lsvg "$vg" 2>/dev/null | grep -E "VG STATE|PP SIZE|TOTAL PPs|FREE PPs|QUORUM" | tee -a "$OUTPUT_FILE"
+            
+            # Check for quorum issues
+            local quorum=$(lsvg "$vg" 2>/dev/null | grep "QUORUM" | awk '{print $2}')
+            if [[ "$quorum" != "2" ]]; then
+                log_bottleneck "Storage" "Volume Group $vg quorum issue" "$quorum" "2" "High"
+            fi
+        done
+        
+        # Logical Volumes
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Logical Volumes:" | tee -a "$OUTPUT_FILE"
+        for vg in $(lsvg); do
+            lsvg -l "$vg" 2>/dev/null | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # ==========================================================================
+    # STORAGE TIERING - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TIERING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Disk Types and Attributes:" | tee -a "$OUTPUT_FILE"
+    
+    local ssd_count=0
+    local hdd_count=0
+    
+    for pv in $(lspv | awk '{print $1}'); do
+        local disk_type="Unknown"
+        local size=""
+        
+        # Get disk size
+        size=$(lspv "$pv" 2>/dev/null | grep "TOTAL PPs" | awk '{print $3}')
+        local pp_size=$(lspv "$pv" 2>/dev/null | grep "PP SIZE" | awk '{print $3}')
+        
+        # Check if SSD (via lsattr if available)
+        if command -v lsattr >/dev/null 2>&1; then
+            local queue_depth=$(lsattr -El "$pv" 2>/dev/null | grep queue_depth | awk '{print $2}')
+            # SSDs typically have higher queue depths configured
+            if [[ -n "$queue_depth" ]] && (( queue_depth > 32 )); then
+                disk_type="SSD (likely)"
+                ((ssd_count++))
+            else
+                disk_type="HDD (likely)"
+                ((hdd_count++))
+            fi
+        fi
+        
+        echo "  $pv: $disk_type - ${size:-Unknown} PPs (${pp_size:-Unknown} MB each)" | tee -a "$OUTPUT_FILE"
+    done
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Storage Tier Summary: SSD=$ssd_count, HDD=$hdd_count" | tee -a "$OUTPUT_FILE"
+    
+    # ==========================================================================
+    # SAN/MULTIPATH - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- SAN/MULTIPATH DETECTION ---" | tee -a "$OUTPUT_FILE"
+    
+    # MPIO/PowerPath detection
+    if command -v lspath >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Multipath Configuration:" | tee -a "$OUTPUT_FILE"
+        lspath | tee -a "$OUTPUT_FILE"
+        
+        # Check for failed paths
+        local failed_paths=$(lspath 2>/dev/null | grep -c "Failed" || echo "0")
+        if (( failed_paths > 0 )); then
+            log_bottleneck "Storage" "Failed multipath paths detected" "$failed_paths" "0" "Critical"
+        fi
+    fi
+    
+    # Fibre Channel adapters
+    if command -v lsdev >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Fibre Channel Adapters:" | tee -a "$OUTPUT_FILE"
+        lsdev -Cc adapter | grep -i "fcs\|fscsi" | tee -a "$OUTPUT_FILE" || echo "  No FC adapters found" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # CAPACITY PROFILING - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- CAPACITY PROFILING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Filesystem Capacity:" | tee -a "$OUTPUT_FILE"
+    df -g | tee -a "$OUTPUT_FILE"
+    
+    # Inode usage
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Inode Usage:" | tee -a "$OUTPUT_FILE"
+    df -i | tee -a "$OUTPUT_FILE"
+    
+    # Large files
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Top 10 Directories by Size (/):" | tee -a "$OUTPUT_FILE"
+    du -sg /* 2>/dev/null | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
+    
+    # ==========================================================================
+    # PERFORMANCE BASELINE - AIX
+    # ==========================================================================
+    if [[ "$MODE" == "deep" ]] || [[ "$MODE" == "disk" ]]; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- STORAGE PERFORMANCE BASELINE ---" | tee -a "$OUTPUT_FILE"
+        
+        log_info "Running I/O performance tests..."
+        
+        local test_file="/tmp/storage_test_$$"
+        
+        # Write test
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Write Test:" | tee -a "$OUTPUT_FILE"
+        local write_result=$(dd if=/dev/zero of="$test_file" bs=1M count=512 2>&1)
+        echo "$write_result" | grep -E "bytes|MB/s" | tee -a "$OUTPUT_FILE"
+        
+        # Read test
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Read Test:" | tee -a "$OUTPUT_FILE"
+        sync
+        local read_result=$(dd if="$test_file" of=/dev/null bs=1M 2>&1)
+        echo "$read_result" | grep -E "bytes|MB/s" | tee -a "$OUTPUT_FILE"
+        
+        rm -f "$test_file"
+    fi
+}
+
+analyze_storage_profile_hpux() {
+    # ==========================================================================
+    # DISK LABELING / PARTITION SCHEME - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- DISK LABELING (HP-UX) ---" | tee -a "$OUTPUT_FILE"
+    
+    # HP-UX uses LVM similar to AIX, but also supports whole-disk
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "HP-UX Disk Management:" | tee -a "$OUTPUT_FILE"
+    echo "  HP-UX primarily uses LVM (Logical Volume Manager)" | tee -a "$OUTPUT_FILE"
+    echo "  Supports both LVM and whole-disk filesystems" | tee -a "$OUTPUT_FILE"
+    
+    # Check boot configuration
+    if command -v setboot >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Boot Configuration:" | tee -a "$OUTPUT_FILE"
+        setboot 2>/dev/null | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # Check for EFI (Itanium) vs PARISC boot
+    local arch=$(uname -m)
+    echo "" | tee -a "$OUTPUT_FILE"
+    if [[ "$arch" == "ia64" ]]; then
+        echo "  Architecture: Itanium (IA-64) - EFI Boot" | tee -a "$OUTPUT_FILE"
+        # EFI partition info
+        if command -v efi >/dev/null 2>&1; then
+            echo "  EFI Partitions:" | tee -a "$OUTPUT_FILE"
+            efi -l 2>/dev/null | tee -a "$OUTPUT_FILE"
+        fi
+    else
+        echo "  Architecture: PA-RISC - PDC Boot" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # STORAGE TOPOLOGY - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TOPOLOGY ---" | tee -a "$OUTPUT_FILE"
+    
+    # Disk devices
+    if command -v ioscan >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
+        ioscan -funC disk | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # LVM - Physical Volumes
+    if command -v pvdisplay >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Physical Volumes:" | tee -a "$OUTPUT_FILE"
+        pvdisplay 2>/dev/null | grep -E "PV Name|PV Status|Total PE|Free PE" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # LVM - Volume Groups
+    if command -v vgdisplay >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Volume Groups:" | tee -a "$OUTPUT_FILE"
+        vgdisplay 2>/dev/null | grep -E "VG Name|VG Status|Total PE|Free PE|PE Size" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # LVM - Logical Volumes
+    if command -v lvdisplay >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Logical Volumes:" | tee -a "$OUTPUT_FILE"
+        lvdisplay 2>/dev/null | grep -E "LV Name|LV Status|LV Size|Current LE" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # STORAGE TIERING - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TIERING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Disk Hardware Info:" | tee -a "$OUTPUT_FILE"
+    if command -v ioscan >/dev/null 2>&1; then
+        ioscan -fnC disk | while read -r line; do
+            echo "  $line" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # ==========================================================================
+    # SAN/MULTIPATH - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- SAN/MULTIPATH DETECTION ---" | tee -a "$OUTPUT_FILE"
+    
+    # Fibre Channel adapters
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Fibre Channel Adapters:" | tee -a "$OUTPUT_FILE"
+    ioscan -fnC fc 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "  No FC adapters found" | tee -a "$OUTPUT_FILE"
+    
+    # Native Multi-Pathing
+    if command -v scsimgr >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Multipath Status:" | tee -a "$OUTPUT_FILE"
+        scsimgr lun_map 2>/dev/null | head -50 | tee -a "$OUTPUT_FILE" || echo "  scsimgr not available" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # CAPACITY PROFILING - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- CAPACITY PROFILING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Filesystem Capacity:" | tee -a "$OUTPUT_FILE"
+    df -k | tee -a "$OUTPUT_FILE"
+    
+    # bdf for detailed view
+    if command -v bdf >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Filesystem Details (bdf):" | tee -a "$OUTPUT_FILE"
+        bdf | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # Large directories
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Top 10 Directories by Size (/):" | tee -a "$OUTPUT_FILE"
+    du -sk /* 2>/dev/null | sort -rn | head -10 | awk '{printf "  %s\t%s MB\n", $2, $1/1024}' | tee -a "$OUTPUT_FILE"
+    
+    # ==========================================================================
+    # PERFORMANCE BASELINE - HP-UX
+    # ==========================================================================
+    if [[ "$MODE" == "deep" ]] || [[ "$MODE" == "disk" ]]; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- STORAGE PERFORMANCE BASELINE ---" | tee -a "$OUTPUT_FILE"
+        
+        log_info "Running I/O performance tests..."
+        
+        local test_file="/tmp/storage_test_$$"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Write Test:" | tee -a "$OUTPUT_FILE"
+        local write_result=$(dd if=/dev/zero of="$test_file" bs=1048576 count=512 2>&1)
+        echo "$write_result" | tail -1 | tee -a "$OUTPUT_FILE"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Read Test:" | tee -a "$OUTPUT_FILE"
+        sync
+        local read_result=$(dd if="$test_file" of=/dev/null bs=1048576 2>&1)
+        echo "$read_result" | tail -1 | tee -a "$OUTPUT_FILE"
+        
+        rm -f "$test_file"
+    fi
+}
+
+analyze_storage_profile_solaris() {
+    # ==========================================================================
+    # DISK LABELING / PARTITION SCHEME - Solaris/Illumos
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- DISK LABELING (Solaris/Illumos) ---" | tee -a "$OUTPUT_FILE"
+    
+    # Solaris supports multiple partition schemes
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Solaris Disk Label Types:" | tee -a "$OUTPUT_FILE"
+    echo "  SMI (VTOC) - Traditional Solaris label, 2TB limit" | tee -a "$OUTPUT_FILE"
+    echo "  EFI (GPT)  - Modern label, >2TB support, required for ZFS on large disks" | tee -a "$OUTPUT_FILE"
+    
+    # Check disk labels using prtvtoc or format
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Disk Label Analysis:" | tee -a "$OUTPUT_FILE"
+    
+    local smi_count=0
+    local efi_count=0
+    
+    # Get list of disks
+    if command -v format >/dev/null 2>&1; then
+        # Parse format output for disk list
+        local disk_list=$(echo "" | format 2>/dev/null | grep "^[[:space:]]*[0-9]" | awk '{print $2}')
+        
+        for disk in $disk_list; do
+            local disk_dev="/dev/rdsk/${disk}s2"
+            [[ -c "$disk_dev" ]] || disk_dev="/dev/rdsk/${disk}s0"
+            [[ -c "$disk_dev" ]] || continue
+            
+            # Try prtvtoc to determine label type
+            local label_type="Unknown"
+            local vtoc_output=$(prtvtoc "$disk_dev" 2>&1)
+            
+            if echo "$vtoc_output" | grep -q "EFI"; then
+                label_type="EFI (GPT)"
+                ((efi_count++))
+            elif echo "$vtoc_output" | grep -q "Dimensions\|sectors/track"; then
+                label_type="SMI (VTOC)"
+                ((smi_count++))
+                
+                # Check size - warn if SMI on >2TB
+                local disk_size=$(echo "$vtoc_output" | grep "accessible sectors" | awk '{print $1}')
+                if [[ -n "$disk_size" ]]; then
+                    local size_tb=$((disk_size * 512 / 1024 / 1024 / 1024 / 1024))
+                    if (( size_tb > 2 )); then
+                        log_bottleneck "Storage" "SMI (VTOC) label on >2TB disk $disk" "SMI on ${size_tb}TB" "EFI" "High"
+                    fi
+                fi
+            fi
+            
+            echo "  $disk: $label_type" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Label Summary: EFI (GPT)=$efi_count, SMI (VTOC)=$smi_count" | tee -a "$OUTPUT_FILE"
+    
+    # Boot configuration
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Boot Configuration:" | tee -a "$OUTPUT_FILE"
+    
+    # Check if UEFI or BIOS boot
+    if [[ -d /sys/firmware/efi ]]; then
+        echo "  Firmware: UEFI" | tee -a "$OUTPUT_FILE"
+    else
+        # Check for x86 BIOS vs SPARC OBP
+        local arch=$(uname -p)
+        if [[ "$arch" == "sparc" ]]; then
+            echo "  Firmware: OpenBoot PROM (SPARC)" | tee -a "$OUTPUT_FILE"
+        else
+            echo "  Firmware: BIOS (x86)" | tee -a "$OUTPUT_FILE"
+        fi
+    fi
+    
+    # Show boot device
+    if command -v prtconf >/dev/null 2>&1; then
+        local boot_dev=$(prtconf -vp 2>/dev/null | grep "bootpath" | head -1)
+        [[ -n "$boot_dev" ]] && echo "  Boot Path: $boot_dev" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # FILESYSTEM TYPES - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Filesystem Types:" | tee -a "$OUTPUT_FILE"
+    
+    # Count filesystem types
+    local zfs_count=$(zfs list -H 2>/dev/null | wc -l)
+    local ufs_count=$(mount -v 2>/dev/null | grep -c "ufs" || echo "0")
+    
+    echo "  ZFS: $zfs_count dataset(s) - Modern, recommended" | tee -a "$OUTPUT_FILE"
+    if (( ufs_count > 0 )); then
+        echo "  UFS: $ufs_count filesystem(s) - Legacy (consider migration to ZFS)" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # STORAGE TOPOLOGY - Solaris/Illumos
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TOPOLOGY ---" | tee -a "$OUTPUT_FILE"
+    
+    # Disk devices
+    if command -v format >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
+        echo "" | format 2>/dev/null | grep -E "^[0-9]|c[0-9]" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ZFS Pools (primary storage on modern Solaris/Illumos)
+    if command -v zpool >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool Status:" | tee -a "$OUTPUT_FILE"
+        zpool status | tee -a "$OUTPUT_FILE"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool List:" | tee -a "$OUTPUT_FILE"
+        zpool list | tee -a "$OUTPUT_FILE"
+        
+        # Check for degraded pools
+        local degraded=$(zpool status 2>/dev/null | grep -c "DEGRADED\|FAULTED" || echo "0")
+        if (( degraded > 0 )); then
+            log_bottleneck "Storage" "ZFS pool degraded or faulted" "$degraded issues" "0" "Critical"
+        fi
+        
+        # ZFS datasets
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Datasets:" | tee -a "$OUTPUT_FILE"
+        zfs list -o name,used,avail,refer,mountpoint | head -30 | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # Traditional SVM (Solaris Volume Manager) if present
+    if command -v metastat >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "SVM Metadevices:" | tee -a "$OUTPUT_FILE"
+        metastat 2>/dev/null | head -50 | tee -a "$OUTPUT_FILE" || echo "  No SVM configuration" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # STORAGE TIERING - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE TIERING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Disk Hardware Info:" | tee -a "$OUTPUT_FILE"
+    
+    # Use iostat -En for extended disk info
+    if command -v iostat >/dev/null 2>&1; then
+        iostat -En 2>/dev/null | grep -E "^c|Size|Vendor|Product|Serial" | head -40 | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # NVMe detection on newer systems
+    if [[ -d /dev/nvme ]]; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "NVMe Devices:" | tee -a "$OUTPUT_FILE"
+        ls -la /dev/nvme* 2>/dev/null | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # SAN/MULTIPATH - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- SAN/MULTIPATH DETECTION ---" | tee -a "$OUTPUT_FILE"
+    
+    # Fibre Channel ports
+    if command -v fcinfo >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Fibre Channel HBA Ports:" | tee -a "$OUTPUT_FILE"
+        fcinfo hba-port 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "  No FC HBAs found" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # MPxIO (native multipathing)
+    if command -v mpathadm >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "MPxIO Multipath Status:" | tee -a "$OUTPUT_FILE"
+        mpathadm list lu 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "  MPxIO not configured" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # stmsboot status
+    if command -v stmsboot >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "STMS (MPxIO) Status:" | tee -a "$OUTPUT_FILE"
+        stmsboot -L 2>/dev/null | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # iSCSI targets
+    if command -v iscsiadm >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "iSCSI Targets:" | tee -a "$OUTPUT_FILE"
+        iscsiadm list target 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "  No iSCSI targets" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # ZFS HEALTH & SMART - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- STORAGE HEALTH ---" | tee -a "$OUTPUT_FILE"
+    
+    if command -v zpool >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool Health:" | tee -a "$OUTPUT_FILE"
+        zpool status -v 2>/dev/null | grep -E "pool:|state:|status:|action:|scan:|errors:" | tee -a "$OUTPUT_FILE"
+        
+        # Scrub status
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Scrub Status:" | tee -a "$OUTPUT_FILE"
+        zpool status 2>/dev/null | grep -A 2 "scan:" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # CAPACITY PROFILING - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- CAPACITY PROFILING ---" | tee -a "$OUTPUT_FILE"
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Filesystem Capacity:" | tee -a "$OUTPUT_FILE"
+    df -h | tee -a "$OUTPUT_FILE"
+    
+    # ZFS-specific capacity
+    if command -v zpool >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool Capacity:" | tee -a "$OUTPUT_FILE"
+        zpool list -o name,size,alloc,free,cap,health | tee -a "$OUTPUT_FILE"
+        
+        # Check for pools over 80% capacity
+        while read -r line; do
+            local pool_name=$(echo "$line" | awk '{print $1}')
+            local cap=$(echo "$line" | awk '{print $5}' | tr -d '%')
+            if [[ "$pool_name" != "NAME" ]] && [[ -n "$cap" ]] && (( cap > 80 )); then
+                log_bottleneck "Storage" "ZFS pool $pool_name high capacity" "${cap}%" "80%" "High"
+            fi
+        done < <(zpool list -o name,cap 2>/dev/null)
+    fi
+    
+    # Large directories
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Top 10 Directories by Size (/):" | tee -a "$OUTPUT_FILE"
+    du -sh /* 2>/dev/null | sort -rh | head -10 | tee -a "$OUTPUT_FILE"
+    
+    # ==========================================================================
+    # ZFS PERFORMANCE - Solaris
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- ZFS PERFORMANCE STATS ---" | tee -a "$OUTPUT_FILE"
+    
+    if command -v zpool >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool I/O Statistics:" | tee -a "$OUTPUT_FILE"
+        zpool iostat -v 1 3 2>/dev/null | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ARC (Adaptive Replacement Cache) stats
+    if command -v kstat >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS ARC Statistics:" | tee -a "$OUTPUT_FILE"
+        kstat -p zfs:0:arcstats:size 2>/dev/null | tee -a "$OUTPUT_FILE"
+        kstat -p zfs:0:arcstats:hits 2>/dev/null | tee -a "$OUTPUT_FILE"
+        kstat -p zfs:0:arcstats:misses 2>/dev/null | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # PERFORMANCE BASELINE - Solaris
+    # ==========================================================================
+    if [[ "$MODE" == "deep" ]] || [[ "$MODE" == "disk" ]]; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- STORAGE PERFORMANCE BASELINE ---" | tee -a "$OUTPUT_FILE"
+        
+        log_info "Running I/O performance tests..."
+        
+        local test_file="/tmp/storage_test_$$"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Write Test:" | tee -a "$OUTPUT_FILE"
+        local write_result=$(dd if=/dev/zero of="$test_file" bs=1M count=512 2>&1)
+        echo "$write_result" | tail -1 | tee -a "$OUTPUT_FILE"
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Sequential Read Test:" | tee -a "$OUTPUT_FILE"
+        sync
+        local read_result=$(dd if="$test_file" of=/dev/null bs=1M 2>&1)
+        echo "$read_result" | tail -1 | tee -a "$OUTPUT_FILE"
+        
+        rm -f "$test_file"
+    fi
+}
+
+#############################################################################
+# Database Forensics (placeholder for Unix)
+#############################################################################
+
+analyze_databases() {
+    print_header "DATABASE FORENSICS"
+    
+    log_info "Checking for database processes..."
+    
+    # Basic database detection for Unix systems
+    local db_found=false
+    
+    # Oracle detection (common on Unix)
+    if pgrep -x oracle >/dev/null 2>&1 || pgrep -f "ora_pmon" >/dev/null 2>&1; then
+        db_found=true
+        echo "=== Oracle Database Detected ===" | tee -a "$OUTPUT_FILE"
+        ps -ef | grep -E "[o]ra_pmon|[o]racle" | head -5 | tee -a "$OUTPUT_FILE"
+        
+        # Connection count
+        local oracle_conns=$(netstat -an 2>/dev/null | grep ":1521" | grep -c ESTABLISHED || echo "0")
+        echo "  Active Connections (port 1521): ${oracle_conns}" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # DB2 detection (common on AIX)
+    if pgrep -f "db2sysc" >/dev/null 2>&1; then
+        db_found=true
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "=== IBM DB2 Detected ===" | tee -a "$OUTPUT_FILE"
+        ps -ef | grep -E "[d]b2sysc" | head -5 | tee -a "$OUTPUT_FILE"
+        
+        # Connection count
+        local db2_conns=$(netstat -an 2>/dev/null | grep ":50000" | grep -c ESTABLISHED || echo "0")
+        echo "  Active Connections (port 50000): ${db2_conns}" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # MySQL detection
+    if pgrep -x mysqld >/dev/null 2>&1; then
+        db_found=true
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "=== MySQL Detected ===" | tee -a "$OUTPUT_FILE"
+        ps -ef | grep "[m]ysqld" | head -3 | tee -a "$OUTPUT_FILE"
+        
+        local mysql_conns=$(netstat -an 2>/dev/null | grep ":3306" | grep -c ESTABLISHED || echo "0")
+        echo "  Active Connections (port 3306): ${mysql_conns}" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # PostgreSQL detection
+    if pgrep -x postgres >/dev/null 2>&1; then
+        db_found=true
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "=== PostgreSQL Detected ===" | tee -a "$OUTPUT_FILE"
+        ps -ef | grep "[p]ostgres" | head -3 | tee -a "$OUTPUT_FILE"
+        
+        local pg_conns=$(netstat -an 2>/dev/null | grep ":5432" | grep -c ESTABLISHED || echo "0")
+        echo "  Active Connections (port 5432): ${pg_conns}" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    if [[ "$db_found" == false ]]; then
+        echo "No common database processes detected" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    log_success "Database forensics completed"
+}
+
 analyze_network() {
     print_header "NETWORK FORENSICS"
     
@@ -1150,7 +2131,8 @@ main() {
     
     show_banner
     
-    log_info "Detected OS: ${DISTRO}"
+    log_info "Detected OS: ${OS_NAME:-$DISTRO}"
+    log_info "OS Version: ${OS_VERSION:-unknown}"
     log_info "Package Manager: ${PACKAGE_MANAGER}"
     log_info "Starting forensics analysis in ${MODE} mode..."
     log_info "Output file: ${OUTPUT_FILE}"
@@ -1174,6 +2156,7 @@ main() {
             analyze_cpu
             analyze_memory
             analyze_disk
+            analyze_storage_profile
             analyze_databases
             analyze_network
             ;;
@@ -1181,11 +2164,13 @@ main() {
             analyze_cpu
             analyze_memory
             analyze_disk
+            analyze_storage_profile
             analyze_databases
             analyze_network
             ;;
         disk)
             analyze_disk
+            analyze_storage_profile
             ;;
         cpu)
             analyze_cpu
