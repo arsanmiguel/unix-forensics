@@ -1093,6 +1093,124 @@ analyze_storage_profile_aix() {
     fi
     
     # ==========================================================================
+    # PARTITION ALIGNMENT ANALYSIS - AIX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- PARTITION ALIGNMENT ANALYSIS (AIX) ---" | tee -a "$OUTPUT_FILE"
+    echo "Checking LVM Physical Partition (PP) alignment..." | tee -a "$OUTPUT_FILE"
+    
+    # In AIX, alignment is controlled by PP (Physical Partition) size
+    # PP size should be a multiple of the disk's track size for optimal I/O
+    # For SAN/SSD: PP size >= 64MB recommended, aligned to 1MB boundaries
+    
+    local aligned_count=0
+    local misaligned_count=0
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "AIX Alignment Notes:" | tee -a "$OUTPUT_FILE"
+    echo "  - AIX LVM uses Physical Partitions (PPs) instead of traditional partitions" | tee -a "$OUTPUT_FILE"
+    echo "  - PP boundaries determine I/O alignment" | tee -a "$OUTPUT_FILE"
+    echo "  - Optimal: PP size >= 64MB for SAN/SSD, aligned to 1MB boundary" | tee -a "$OUTPUT_FILE"
+    
+    if command -v lsvg >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Volume Group PP Size Analysis:" | tee -a "$OUTPUT_FILE"
+        
+        for vg in $(lsvg 2>/dev/null); do
+            local pp_size_str=$(lsvg "$vg" 2>/dev/null | grep "PP SIZE" | awk '{print $3}')
+            local pp_size_unit=$(lsvg "$vg" 2>/dev/null | grep "PP SIZE" | awk '{print $4}')
+            
+            # Convert PP size to MB
+            local pp_size_mb=0
+            case "$pp_size_unit" in
+                megabyte*|MB)
+                    pp_size_mb=$pp_size_str
+                    ;;
+                gigabyte*|GB)
+                    pp_size_mb=$((pp_size_str * 1024))
+                    ;;
+                *)
+                    pp_size_mb=$pp_size_str
+                    ;;
+            esac
+            
+            # Check if PP size is optimal (>= 64MB and power of 2 for alignment)
+            local alignment_status="ALIGNED"
+            local is_power_of_2=0
+            
+            # Check if power of 2
+            if (( pp_size_mb > 0 )) && (( (pp_size_mb & (pp_size_mb - 1)) == 0 )); then
+                is_power_of_2=1
+            fi
+            
+            if (( pp_size_mb >= 64 )) && (( is_power_of_2 == 1 )); then
+                alignment_status="OPTIMAL (${pp_size_mb}MB - power of 2, >= 64MB)"
+                ((aligned_count++))
+            elif (( pp_size_mb >= 16 )); then
+                alignment_status="ACCEPTABLE (${pp_size_mb}MB)"
+                ((aligned_count++))
+            else
+                alignment_status="SUBOPTIMAL (${pp_size_mb}MB - recommend >= 64MB for SAN)"
+                ((misaligned_count++))
+                log_bottleneck "Storage" "VG $vg has small PP size" "${pp_size_mb}MB" ">= 64MB" "Medium"
+            fi
+            
+            echo "  $vg: PP Size = ${pp_size_str} ${pp_size_unit} - $alignment_status" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # Check disk block size alignment
+    if command -v lsattr >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Block Size Analysis:" | tee -a "$OUTPUT_FILE"
+        
+        for pv in $(lspv 2>/dev/null | awk '{print $1}'); do
+            local block_size=$(lsattr -El "$pv" 2>/dev/null | grep "block_size" | awk '{print $2}')
+            [[ -z "$block_size" ]] && block_size="512"
+            
+            # Check queue depth (affects SAN alignment behavior)
+            local queue_depth=$(lsattr -El "$pv" 2>/dev/null | grep "queue_depth" | awk '{print $2}')
+            
+            # Determine disk type
+            local disk_type="Unknown"
+            local pvid=$(lspv "$pv" 2>/dev/null | grep "PV IDENTIFIER" | awk '{print $3}')
+            if lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -qi "san\|fc\|iscsi"; then
+                disk_type="SAN"
+            elif lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -qi "ssd\|flash"; then
+                disk_type="SSD"
+            else
+                disk_type="HDD"
+            fi
+            
+            # Check 4K native (4Kn) or 512e emulation
+            local alignment_note=""
+            if [[ "$block_size" == "4096" ]]; then
+                alignment_note="4K native - optimal"
+            elif [[ "$block_size" == "512" ]]; then
+                # 512-byte sectors, check if 4K emulation (512e)
+                alignment_note="512-byte sectors"
+            fi
+            
+            echo "  $pv [$disk_type]: Block Size = ${block_size} bytes, Queue Depth = ${queue_depth:-N/A} - $alignment_note" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Partition Alignment Summary:" | tee -a "$OUTPUT_FILE"
+    echo "  Optimal VGs: $aligned_count" | tee -a "$OUTPUT_FILE"
+    if (( misaligned_count > 0 )); then
+        echo "  Suboptimal VGs: $misaligned_count (may impact SAN/SSD performance)" | tee -a "$OUTPUT_FILE"
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "  AIX Alignment Recommendations:" | tee -a "$OUTPUT_FILE"
+        echo "    - Use PP size >= 64MB for SAN environments" | tee -a "$OUTPUT_FILE"
+        echo "    - Use power-of-2 PP sizes (64MB, 128MB, 256MB)" | tee -a "$OUTPUT_FILE"
+        echo "    - mkvg -s 64 (specifies 64MB PP size)" | tee -a "$OUTPUT_FILE"
+        echo "    - Cannot change PP size after VG creation - recreate VG" | tee -a "$OUTPUT_FILE"
+    else
+        echo "  All Volume Groups have optimal PP sizing" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
     # STORAGE TOPOLOGY - AIX
     # ==========================================================================
     echo "" | tee -a "$OUTPUT_FILE"
@@ -1285,6 +1403,136 @@ analyze_storage_profile_hpux() {
         fi
     else
         echo "  Architecture: PA-RISC - PDC Boot" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # PARTITION ALIGNMENT ANALYSIS - HP-UX
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- PARTITION ALIGNMENT ANALYSIS (HP-UX) ---" | tee -a "$OUTPUT_FILE"
+    echo "Checking LVM Physical Extent (PE) alignment..." | tee -a "$OUTPUT_FILE"
+    
+    # HP-UX LVM uses Physical Extents (PEs), similar to AIX Physical Partitions
+    # PE size determines alignment boundaries
+    
+    local aligned_count=0
+    local misaligned_count=0
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "HP-UX Alignment Notes:" | tee -a "$OUTPUT_FILE"
+    echo "  - HP-UX LVM uses Physical Extents (PEs) for allocation" | tee -a "$OUTPUT_FILE"
+    echo "  - PE boundaries determine I/O alignment" | tee -a "$OUTPUT_FILE"
+    echo "  - Optimal: PE size >= 32MB for SAN/SSD, power of 2" | tee -a "$OUTPUT_FILE"
+    
+    if command -v vgdisplay >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Volume Group PE Size Analysis:" | tee -a "$OUTPUT_FILE"
+        
+        # Get list of volume groups
+        for vg in $(vgdisplay 2>/dev/null | grep "VG Name" | awk '{print $3}'); do
+            local pe_size=$(vgdisplay "$vg" 2>/dev/null | grep "PE Size" | awk '{print $3}')
+            local pe_unit=$(vgdisplay "$vg" 2>/dev/null | grep "PE Size" | awk '{print $4}')
+            
+            # Convert to MB
+            local pe_size_mb=0
+            case "$pe_unit" in
+                MB|Mbyte)
+                    pe_size_mb=$pe_size
+                    ;;
+                GB|Gbyte)
+                    pe_size_mb=$((pe_size * 1024))
+                    ;;
+                KB|Kbyte)
+                    pe_size_mb=$((pe_size / 1024))
+                    ;;
+                *)
+                    pe_size_mb=$pe_size
+                    ;;
+            esac
+            
+            # Check alignment status
+            local alignment_status=""
+            local is_power_of_2=0
+            
+            if (( pe_size_mb > 0 )) && (( (pe_size_mb & (pe_size_mb - 1)) == 0 )); then
+                is_power_of_2=1
+            fi
+            
+            if (( pe_size_mb >= 32 )) && (( is_power_of_2 == 1 )); then
+                alignment_status="OPTIMAL (${pe_size_mb}MB - power of 2, >= 32MB)"
+                ((aligned_count++))
+            elif (( pe_size_mb >= 8 )); then
+                alignment_status="ACCEPTABLE (${pe_size_mb}MB)"
+                ((aligned_count++))
+            else
+                alignment_status="SUBOPTIMAL (${pe_size_mb}MB - recommend >= 32MB for SAN)"
+                ((misaligned_count++))
+                log_bottleneck "Storage" "VG $vg has small PE size" "${pe_size_mb}MB" ">= 32MB" "Medium"
+            fi
+            
+            echo "  $vg: PE Size = ${pe_size} ${pe_unit} - $alignment_status" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # Check disk sector size
+    if command -v diskinfo >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Sector Size Analysis:" | tee -a "$OUTPUT_FILE"
+        
+        for disk in $(ioscan -funC disk 2>/dev/null | grep "/dev/rdsk" | awk '{print $1}'); do
+            local sector_size=$(diskinfo "$disk" 2>/dev/null | grep "sector size" | awk '{print $3}')
+            [[ -z "$sector_size" ]] && sector_size="512"
+            
+            local alignment_note=""
+            if [[ "$sector_size" == "4096" ]]; then
+                alignment_note="4K native - optimal"
+            elif [[ "$sector_size" == "512" ]]; then
+                alignment_note="512-byte sectors"
+            fi
+            
+            echo "  $disk: Sector Size = ${sector_size} bytes - $alignment_note" | tee -a "$OUTPUT_FILE"
+        done
+    fi
+    
+    # Check PV offset alignment
+    if command -v pvdisplay >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Physical Volume Alignment:" | tee -a "$OUTPUT_FILE"
+        
+        for pv in $(pvdisplay 2>/dev/null | grep "PV Name" | awk '{print $3}'); do
+            # Get first PE offset - this is where LVM data actually starts
+            local first_pe=$(pvdisplay "$pv" 2>/dev/null | grep "First PE" | awk '{print $3}')
+            [[ -z "$first_pe" ]] && first_pe="0"
+            
+            # HP-UX typically reports first PE in KB
+            local first_pe_kb=$first_pe
+            
+            # Check if aligned to 1MB (1024KB)
+            if (( first_pe_kb % 1024 == 0 )); then
+                echo "  $pv: First PE at ${first_pe_kb}KB - ALIGNED (1MB boundary)" | tee -a "$OUTPUT_FILE"
+            elif (( first_pe_kb % 64 == 0 )); then
+                echo "  $pv: First PE at ${first_pe_kb}KB - ALIGNED (64KB boundary)" | tee -a "$OUTPUT_FILE"
+            else
+                echo "  $pv: First PE at ${first_pe_kb}KB - MISALIGNED" | tee -a "$OUTPUT_FILE"
+                ((misaligned_count++))
+                log_bottleneck "Storage" "PV $pv has misaligned first PE" "${first_pe_kb}KB" "1MB aligned" "Medium"
+            fi
+        done
+    fi
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Partition Alignment Summary:" | tee -a "$OUTPUT_FILE"
+    echo "  Optimal VGs: $aligned_count" | tee -a "$OUTPUT_FILE"
+    if (( misaligned_count > 0 )); then
+        echo "  Suboptimal/Misaligned: $misaligned_count" | tee -a "$OUTPUT_FILE"
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "  HP-UX Alignment Recommendations:" | tee -a "$OUTPUT_FILE"
+        echo "    - Use PE size >= 32MB for SAN environments" | tee -a "$OUTPUT_FILE"
+        echo "    - Use power-of-2 PE sizes (32MB, 64MB, 128MB)" | tee -a "$OUTPUT_FILE"
+        echo "    - vgcreate -s 32 (specifies 32MB PE size)" | tee -a "$OUTPUT_FILE"
+        echo "    - For existing VGs, migrate to new VG with proper PE size" | tee -a "$OUTPUT_FILE"
+    else
+        echo "  All Volume Groups have optimal PE sizing" | tee -a "$OUTPUT_FILE"
     fi
     
     # ==========================================================================
@@ -1495,6 +1743,186 @@ analyze_storage_profile_solaris() {
     echo "  ZFS: $zfs_count dataset(s) - Modern, recommended" | tee -a "$OUTPUT_FILE"
     if (( ufs_count > 0 )); then
         echo "  UFS: $ufs_count filesystem(s) - Legacy (consider migration to ZFS)" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # PARTITION ALIGNMENT ANALYSIS - Solaris/Illumos
+    # ==========================================================================
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "--- PARTITION ALIGNMENT ANALYSIS (Solaris) ---" | tee -a "$OUTPUT_FILE"
+    echo "Checking slice/partition alignment for SSD/SAN performance..." | tee -a "$OUTPUT_FILE"
+    
+    local aligned_count=0
+    local misaligned_count=0
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Solaris Alignment Notes:" | tee -a "$OUTPUT_FILE"
+    echo "  - VTOC (SMI) slices should start on cylinder boundaries" | tee -a "$OUTPUT_FILE"
+    echo "  - EFI (GPT) partitions should be 1MB aligned for SSD/SAN" | tee -a "$OUTPUT_FILE"
+    echo "  - ZFS automatically handles alignment internally" | tee -a "$OUTPUT_FILE"
+    echo "  - UFS partitions may have legacy alignment issues" | tee -a "$OUTPUT_FILE"
+    
+    # Check VTOC slice alignment using prtvtoc
+    if command -v prtvtoc >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Slice Alignment Analysis:" | tee -a "$OUTPUT_FILE"
+        
+        # Get list of disks
+        for disk_dev in /dev/rdsk/c*s2; do
+            [[ -c "$disk_dev" ]] || continue
+            
+            local disk_base=$(basename "$disk_dev" | sed 's/s2$//')
+            
+            # Get VTOC info
+            local vtoc_output=$(prtvtoc "$disk_dev" 2>&1)
+            
+            # Skip if not a VTOC disk
+            if echo "$vtoc_output" | grep -q "EFI"; then
+                # EFI (GPT) disk - check partition start sectors
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "  $disk_base (EFI/GPT):" | tee -a "$OUTPUT_FILE"
+                
+                # Parse EFI partition info
+                while read -r part_num tag flag first_sector sector_count last_sector mount; do
+                    [[ "$part_num" =~ ^[0-9]+$ ]] || continue
+                    [[ -z "$first_sector" ]] && continue
+                    [[ "$first_sector" == "0" ]] && continue
+                    
+                    # Assume 512-byte sectors, check 4K (8 sectors) and 1MB (2048 sectors) alignment
+                    local offset_bytes=$((first_sector * 512))
+                    local offset_kb=$((offset_bytes / 1024))
+                    
+                    local aligned_4k="NO"
+                    local aligned_1mb="NO"
+                    
+                    if (( offset_bytes % 4096 == 0 )); then
+                        aligned_4k="YES"
+                    fi
+                    if (( offset_bytes % 1048576 == 0 )); then
+                        aligned_1mb="YES"
+                    fi
+                    
+                    if [[ "$aligned_4k" == "YES" ]]; then
+                        ((aligned_count++))
+                        if [[ "$aligned_1mb" == "YES" ]]; then
+                            echo "    Partition $part_num: ALIGNED (1MB) - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
+                        else
+                            echo "    Partition $part_num: ALIGNED (4K) - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
+                        fi
+                    else
+                        ((misaligned_count++))
+                        echo "    Partition $part_num: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
+                        log_bottleneck "Storage" "Misaligned EFI partition on $disk_base" "Sector $first_sector" "4K aligned" "High"
+                    fi
+                done < <(echo "$vtoc_output" | grep -E "^[[:space:]]*[0-9]")
+                
+            else
+                # VTOC (SMI) disk - check cylinder alignment
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "  $disk_base (VTOC/SMI):" | tee -a "$OUTPUT_FILE"
+                
+                # Get sector size and sectors per cylinder
+                local sector_size=$(echo "$vtoc_output" | grep "sector size" | awk '{print $3}')
+                [[ -z "$sector_size" ]] && sector_size=512
+                local sectors_per_cyl=$(echo "$vtoc_output" | grep "sectors/cylinder" | awk '{print $2}')
+                [[ -z "$sectors_per_cyl" ]] && sectors_per_cyl=1
+                
+                # Parse slice info: Tag Flag First_Sector Sector_Count Last_Sector Mount
+                while read -r slice tag flag first_sector sector_count last_sector mount; do
+                    [[ "$slice" =~ ^[0-9]+$ ]] || continue
+                    [[ -z "$first_sector" ]] && continue
+                    [[ "$sector_count" == "0" ]] && continue
+                    
+                    # Calculate offset
+                    local offset_bytes=$((first_sector * sector_size))
+                    local offset_kb=$((offset_bytes / 1024))
+                    
+                    # Check cylinder alignment (traditional VTOC)
+                    local cyl_aligned="NO"
+                    if (( sectors_per_cyl > 0 )) && (( first_sector % sectors_per_cyl == 0 )); then
+                        cyl_aligned="YES"
+                    fi
+                    
+                    # Check 4K alignment (modern requirement)
+                    local aligned_4k="NO"
+                    local aligned_1mb="NO"
+                    
+                    if (( offset_bytes % 4096 == 0 )); then
+                        aligned_4k="YES"
+                    fi
+                    if (( offset_bytes % 1048576 == 0 )); then
+                        aligned_1mb="YES"
+                    fi
+                    
+                    if [[ "$aligned_4k" == "YES" ]]; then
+                        ((aligned_count++))
+                        local align_detail=""
+                        [[ "$aligned_1mb" == "YES" ]] && align_detail=" (1MB boundary)"
+                        [[ "$cyl_aligned" == "YES" ]] && align_detail="$align_detail (cylinder aligned)"
+                        echo "    Slice $slice: ALIGNED${align_detail} - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
+                    else
+                        ((misaligned_count++))
+                        echo "    Slice $slice: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
+                        log_bottleneck "Storage" "Misaligned VTOC slice on $disk_base" "Sector $first_sector" "4K aligned" "High"
+                    fi
+                done < <(echo "$vtoc_output" | grep -E "^[[:space:]]*[0-9]")
+            fi
+        done
+    fi
+    
+    # Check ZFS pool ashift (sector size alignment)
+    if command -v zpool >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "ZFS Pool Alignment (ashift):" | tee -a "$OUTPUT_FILE"
+        
+        for pool in $(zpool list -H -o name 2>/dev/null); do
+            # Get ashift value (log2 of sector size)
+            local ashift=$(zpool get -H ashift "$pool" 2>/dev/null | awk '{print $3}')
+            [[ -z "$ashift" ]] && continue
+            
+            local sector_size=$((2 ** ashift))
+            
+            local alignment_status=""
+            if (( ashift >= 12 )); then
+                alignment_status="OPTIMAL (ashift=$ashift = ${sector_size}-byte sectors, 4K+ aligned)"
+                ((aligned_count++))
+            elif (( ashift == 9 )); then
+                alignment_status="LEGACY (ashift=$ashift = 512-byte sectors)"
+                # Check if pool has SSDs - if so, this is a problem
+                local has_ssd=$(zpool status "$pool" 2>/dev/null | grep -i "ssd\|nvme")
+                if [[ -n "$has_ssd" ]]; then
+                    alignment_status="SUBOPTIMAL (ashift=9 on SSD - should be 12+)"
+                    ((misaligned_count++))
+                    log_bottleneck "Storage" "ZFS pool $pool has suboptimal ashift for SSD" "ashift=$ashift" "ashift=12+" "High"
+                fi
+            else
+                alignment_status="ashift=$ashift (${sector_size}-byte sectors)"
+            fi
+            
+            echo "  Pool $pool: $alignment_status" | tee -a "$OUTPUT_FILE"
+        done
+        
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "  ZFS ashift recommendations:" | tee -a "$OUTPUT_FILE"
+        echo "    - ashift=9  (512B) - Legacy HDDs only" | tee -a "$OUTPUT_FILE"
+        echo "    - ashift=12 (4KB)  - Modern HDDs, SSDs" | tee -a "$OUTPUT_FILE"
+        echo "    - ashift=13 (8KB)  - Some enterprise SSDs" | tee -a "$OUTPUT_FILE"
+        echo "    - Set at pool creation: zpool create -o ashift=12 ..." | tee -a "$OUTPUT_FILE"
+    fi
+    
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Partition Alignment Summary:" | tee -a "$OUTPUT_FILE"
+    echo "  Aligned: $aligned_count" | tee -a "$OUTPUT_FILE"
+    if (( misaligned_count > 0 )); then
+        echo "  Misaligned: $misaligned_count (PERFORMANCE IMPACT)" | tee -a "$OUTPUT_FILE"
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "  Solaris Alignment Recommendations:" | tee -a "$OUTPUT_FILE"
+        echo "    - Use EFI (GPT) labels for new disks" | tee -a "$OUTPUT_FILE"
+        echo "    - Ensure partitions start at 1MB (sector 2048)" | tee -a "$OUTPUT_FILE"
+        echo "    - For ZFS: use ashift=12 or higher for SSDs" | tee -a "$OUTPUT_FILE"
+        echo "    - format -e allows EFI label creation" | tee -a "$OUTPUT_FILE"
+    else
+        echo "  All partitions/slices are properly aligned" | tee -a "$OUTPUT_FILE"
     fi
     
     # ==========================================================================

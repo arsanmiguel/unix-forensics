@@ -103,6 +103,10 @@ sudo ./invoke-unix-forensics.sh
   - **AIX**: LVM-only architecture (no MBR/GPT concept)
   - **HP-UX**: LVM, EFI (Itanium) vs PDC (PA-RISC) boot detection
   - **Solaris/Illumos**: SMI (VTOC) vs EFI (GPT) with >2TB warnings
+- **Partition alignment analysis:**
+  - **AIX**: LVM Physical Partition (PP) size analysis (optimal >= 64MB for SAN)
+  - **HP-UX**: LVM Physical Extent (PE) size and first PE offset alignment
+  - **Solaris**: VTOC slice alignment, EFI partition alignment, ZFS ashift analysis
 - Boot configuration (UEFI vs BIOS/OBP)
 - Filesystem type analysis (ZFS, UFS, JFS, VxFS)
 - Storage topology (LVM, VxVM, SVM, ZFS)
@@ -143,6 +147,14 @@ sudo ./invoke-unix-forensics.sh
 - Categorizes by severity (Critical, High, Medium, Low)
 - Provides threshold comparisons
 - **Creates AWS Support case** with all diagnostic data
+
+**Storage Issues Detected:**
+- **Misaligned partitions/extents** (LVM PP/PE size, slice alignment, ZFS ashift)
+- **SMI (VTOC) label on >2TB disk** (Solaris - only 2TB usable)
+- ZFS pool degraded or faulted
+- SMART drive failures (where smartctl available)
+- AIX Volume Group quorum issues
+- Suboptimal LVM extent sizes for SAN environments
 
 </details>
 
