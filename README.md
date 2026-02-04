@@ -19,6 +19,8 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works on-premises and in cloud environments
 
+> **Note on Enhanced Profiling Tools:** Unlike the Linux and macOS versions of this utility, the Unix version does not include htop, btop, or glances support. These modern interactive profilers are typically not available in standard AIX, HP-UX, or Solaris package repositories, and their compilation requirements make them impractical for enterprise Unix environments. The Unix utility relies on native tools (vmstat, iostat, sar, prstat, svmon, etc.) which are well-suited for these platforms.
+
 ---
 
 ## 🚀 **Quick Start**
