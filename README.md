@@ -86,6 +86,8 @@ sudo ./invoke-unix-forensics.sh
 - Context switch rate monitoring
 - CPU steal time detection (hypervisor contention)
 - Top CPU-consuming processes
+- **SAR CPU analysis:** Real-time sampling (sar -u, sar -q)
+- **Historical CPU data:** Automatic detection of /var/adm/sa data
 
 **Memory Forensics:**
 - Memory usage and availability analysis
@@ -97,6 +99,8 @@ sudo ./invoke-unix-forensics.sh
 - Memory leak candidate identification
 - Huge pages status
 - Top memory-consuming processes
+- **SAR memory analysis:** Real-time sampling (sar -r, sar -p/sar -g)
+- **Historical memory data:** Automatic detection of /var/adm/sa data
 
 **Storage Profiling:**
 - Disk labeling/partition scheme detection:
@@ -117,6 +121,8 @@ sudo ./invoke-unix-forensics.sh
 - Read/write performance testing (dd-based)
 - Dropped I/O detection
 - Per-device statistics
+- **SAR disk analysis:** Real-time sampling (sar -d, sar -b)
+- **Historical disk data:** Automatic detection of /var/adm/sa data
 
 **Database Forensics:**
 - Automatic detection of running databases
@@ -141,6 +147,8 @@ sudo ./invoke-unix-forensics.sh
 - Socket memory usage
 - Network throughput analysis
 - Buffer/queue settings
+- **SAR network analysis:** Real-time sampling (sar -n DEV, sar -n EDEV, sar -n TCP)
+- **Historical network data:** Automatic detection of /var/adm/sa data
 
 **Bottleneck Detection:**
 - Automatically identifies performance issues

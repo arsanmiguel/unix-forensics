@@ -608,11 +608,44 @@ analyze_cpu_aix() {
         vmstat 1 5 | tee -a "$OUTPUT_FILE"
     fi
     
-    # sar if available
+    # ==========================================================================
+    # SAR CPU ANALYSIS (AIX)
+    # ==========================================================================
     if command -v sar >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
-        echo "=== CPU Usage (sar) ===" | tee -a "$OUTPUT_FILE"
-        sar 1 5 | tee -a "$OUTPUT_FILE"
+        echo "--- SAR CPU ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time CPU sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "CPU Utilization (sar -u, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -u 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || sar 1 5 2>/dev/null | tee -a "$OUTPUT_FILE"
+        
+        # Run queue and load
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Run Queue (sar -q, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -q 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data (AIX: /var/adm/sa/)
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Historical SAR Data:" | tee -a "$OUTPUT_FILE"
+        
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "  Found: $sar_file" | tee -a "$OUTPUT_FILE"
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "  CPU History (today):" | tee -a "$OUTPUT_FILE"
+                sar -u -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            else
+                echo "  No historical data found for today." | tee -a "$OUTPUT_FILE"
+                echo "  Enable with: /usr/lib/sa/sadc /var/adm/sa/sa\$(date +%d)" | tee -a "$OUTPUT_FILE"
+            fi
+        else
+            echo "  SAR data directory not found: $sar_dir" | tee -a "$OUTPUT_FILE"
+        fi
     fi
     
     # Top CPU consumers
@@ -637,11 +670,44 @@ analyze_cpu_hpux() {
         vmstat 1 5 | tee -a "$OUTPUT_FILE"
     fi
     
-    # sar if available
+    # ==========================================================================
+    # SAR CPU ANALYSIS (HP-UX)
+    # ==========================================================================
     if command -v sar >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
-        echo "=== CPU Usage (sar) ===" | tee -a "$OUTPUT_FILE"
-        sar 1 5 | tee -a "$OUTPUT_FILE"
+        echo "--- SAR CPU ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time CPU sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "CPU Utilization (sar -u, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -u 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || sar 1 5 2>/dev/null | tee -a "$OUTPUT_FILE"
+        
+        # Run queue and load
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Run Queue (sar -q, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -q 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data (HP-UX: /var/adm/sa/)
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Historical SAR Data:" | tee -a "$OUTPUT_FILE"
+        
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "  Found: $sar_file" | tee -a "$OUTPUT_FILE"
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "  CPU History (today):" | tee -a "$OUTPUT_FILE"
+                sar -u -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            else
+                echo "  No historical data found for today." | tee -a "$OUTPUT_FILE"
+                echo "  Enable via cron: /usr/lbin/sa/sadc /var/adm/sa/sa\$(date +%d)" | tee -a "$OUTPUT_FILE"
+            fi
+        else
+            echo "  SAR data directory not found: $sar_dir" | tee -a "$OUTPUT_FILE"
+        fi
     fi
     
     # Top CPU consumers
@@ -678,6 +744,46 @@ analyze_cpu_solaris() {
         echo "" | tee -a "$OUTPUT_FILE"
         echo "=== Per-CPU Statistics (mpstat) ===" | tee -a "$OUTPUT_FILE"
         mpstat 1 5 | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # SAR CPU ANALYSIS (Solaris/Illumos)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR CPU ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time CPU sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "CPU Utilization (sar -u, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -u 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Run queue and load
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Run Queue (sar -q, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -q 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data (Solaris: /var/adm/sa/)
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Historical SAR Data:" | tee -a "$OUTPUT_FILE"
+        
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "  Found: $sar_file" | tee -a "$OUTPUT_FILE"
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "  CPU History (today):" | tee -a "$OUTPUT_FILE"
+                sar -u -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            else
+                echo "  No historical data found for today." | tee -a "$OUTPUT_FILE"
+                echo "  Enable via: svcadm enable system/sar" | tee -a "$OUTPUT_FILE"
+            fi
+        else
+            echo "  SAR data directory not found: $sar_dir" | tee -a "$OUTPUT_FILE"
+        fi
     fi
     
     # Top CPU consumers using prstat
@@ -739,6 +845,37 @@ analyze_memory_aix() {
         fi
     fi
     
+    # ==========================================================================
+    # SAR MEMORY ANALYSIS (AIX)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR MEMORY ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time memory/paging sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Memory Statistics (sar -r, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -r 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Paging activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Paging Activity (sar -p, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -p 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Memory Data (today):" | tee -a "$OUTPUT_FILE"
+                sar -r -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            fi
+        fi
+    fi
+    
     # Top memory consumers
     echo "" | tee -a "$OUTPUT_FILE"
     echo "=== Top 10 Memory Consumers ===" | tee -a "$OUTPUT_FILE"
@@ -756,6 +893,37 @@ analyze_memory_hpux() {
         local swap_pct=$(swapinfo -t | tail -1 | awk '{print $5}' | tr -d '%')
         if [[ -n "$swap_pct" ]] && (( swap_pct > 50 )); then
             log_bottleneck "Memory" "High swap usage" "${swap_pct}%" "50%" "High"
+        fi
+    fi
+    
+    # ==========================================================================
+    # SAR MEMORY ANALYSIS (HP-UX)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR MEMORY ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time memory sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Memory Statistics (sar -r, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -r 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Paging activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Paging Activity (sar -p, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -p 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Memory Data (today):" | tee -a "$OUTPUT_FILE"
+                sar -r -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            fi
         fi
     fi
     
@@ -778,6 +946,37 @@ analyze_memory_solaris() {
         echo "=== Physical Memory ===" | tee -a "$OUTPUT_FILE"
         prtconf | grep "Memory size" | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # SAR MEMORY ANALYSIS (Solaris/Illumos)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR MEMORY ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Real-time memory sampling
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Memory Statistics (sar -r, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -r 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Paging activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Paging Activity (sar -g, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -g 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Memory Data (today):" | tee -a "$OUTPUT_FILE"
+                sar -r -f "$sar_file" 2>/dev/null | tail -20 | tee -a "$OUTPUT_FILE" || true
+            fi
+        fi
     fi
     
     # Top memory consumers using prstat
@@ -857,6 +1056,37 @@ analyze_disk_aix() {
         lsvg | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
     fi
+    
+    # ==========================================================================
+    # SAR DISK I/O ANALYSIS (AIX)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR DISK I/O ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Disk activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Activity (sar -d, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -d 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Block device activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Buffer Activity (sar -b, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -b 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Disk I/O (today):" | tee -a "$OUTPUT_FILE"
+                sar -d -f "$sar_file" 2>/dev/null | tail -25 | tee -a "$OUTPUT_FILE" || true
+            fi
+        fi
+    fi
 }
 
 analyze_disk_hpux() {
@@ -893,6 +1123,37 @@ analyze_disk_hpux() {
         echo "=== Volume Groups ===" | tee -a "$OUTPUT_FILE"
         vgdisplay | head -50 | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # SAR DISK I/O ANALYSIS (HP-UX)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR DISK I/O ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Disk activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Activity (sar -d, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -d 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Buffer activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Buffer Activity (sar -b, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -b 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Disk I/O (today):" | tee -a "$OUTPUT_FILE"
+                sar -d -f "$sar_file" 2>/dev/null | tail -25 | tee -a "$OUTPUT_FILE" || true
+            fi
+        fi
     fi
 }
 
@@ -934,6 +1195,37 @@ analyze_disk_solaris() {
         echo "=== Disk Devices ===" | tee -a "$OUTPUT_FILE"
         echo | format 2>/dev/null | grep "^[0-9]" | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
+    fi
+    
+    # ==========================================================================
+    # SAR DISK I/O ANALYSIS (Solaris/Illumos)
+    # ==========================================================================
+    if command -v sar >/dev/null 2>&1; then
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "--- SAR DISK I/O ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Disk activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Disk Activity (sar -d, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -d 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Buffer activity
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Buffer Activity (sar -b, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -b 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || true
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Disk I/O (today):" | tee -a "$OUTPUT_FILE"
+                sar -d -f "$sar_file" 2>/dev/null | tail -25 | tee -a "$OUTPUT_FILE" || true
+            fi
+        fi
     fi
 }
 
@@ -2281,12 +2573,59 @@ analyze_network() {
         log_warning "Unable to get network interface statistics"
     fi
     
-    # Network throughput (if sar available)
+    # ==========================================================================
+    # SAR NETWORK ANALYSIS
+    # ==========================================================================
     if command -v sar >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
-        echo "Network Throughput (last 5 samples):" | tee -a "$OUTPUT_FILE"
-        sar -n DEV 1 5 2>/dev/null | grep -v "^$" | grep -v "Linux" | tail -20 | tee -a "$OUTPUT_FILE" || \
-        log_warning "sar network statistics not available"
+        echo "--- SAR NETWORK ANALYSIS ---" | tee -a "$OUTPUT_FILE"
+        
+        # Network device throughput (syntax varies by Unix flavor)
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Network Throughput (sar -n DEV, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -n DEV 1 5 2>/dev/null | grep -v "^$" | tail -25 | tee -a "$OUTPUT_FILE" || true
+        
+        # Network errors (if supported)
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "Network Errors (sar -n EDEV, 5 samples):" | tee -a "$OUTPUT_FILE"
+        sar -n EDEV 1 5 2>/dev/null | grep -v "^$" | tail -25 | tee -a "$OUTPUT_FILE" || \
+        echo "  (sar -n EDEV not available on this platform)" | tee -a "$OUTPUT_FILE"
+        
+        # TCP statistics (if supported - varies by platform)
+        case "$DISTRO" in
+            solaris|illumos)
+                # Solaris has different sar options
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Network Stats (netstat -s summary):" | tee -a "$OUTPUT_FILE"
+                netstat -s -P tcp 2>/dev/null | head -30 | tee -a "$OUTPUT_FILE" || true
+                ;;
+            *)
+                # AIX and HP-UX may support sar -n TCP
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "TCP Statistics (sar -n TCP, 5 samples):" | tee -a "$OUTPUT_FILE"
+                sar -n TCP 1 5 2>/dev/null | tee -a "$OUTPUT_FILE" || \
+                echo "  (sar -n TCP not available on this platform)" | tee -a "$OUTPUT_FILE"
+                ;;
+        esac
+        
+        # Check for historical sar data
+        local sar_dir="/var/adm/sa"
+        if [[ -d "$sar_dir" ]]; then
+            local today=$(date +%d)
+            local sar_file="${sar_dir}/sa${today}"
+            
+            if [[ -f "$sar_file" ]]; then
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "Historical Network Data (today):" | tee -a "$OUTPUT_FILE"
+                sar -n DEV -f "$sar_file" 2>/dev/null | tail -30 | tee -a "$OUTPUT_FILE" || true
+            else
+                echo "" | tee -a "$OUTPUT_FILE"
+                echo "No historical sar data found for today." | tee -a "$OUTPUT_FILE"
+            fi
+        fi
+    else
+        echo "" | tee -a "$OUTPUT_FILE"
+        echo "sar not available - install performance monitoring tools for detailed network history" | tee -a "$OUTPUT_FILE"
     fi
     
     # Socket statistics
