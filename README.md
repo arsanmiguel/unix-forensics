@@ -48,8 +48,8 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 
 1. **Clone the repository:**
 ```bash
-git clone https://github.com/arsanmiguel/linux-performance-forensic-tools.git
-cd linux-performance-forensic-tools
+git clone https://github.com/arsanmiguel/unix-forensics.git
+cd unix-forensics
 ```
 
 2. **Make executable:**
