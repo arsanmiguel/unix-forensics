@@ -38,6 +38,20 @@ fi
 
 set -euo pipefail
 
+# Detect OS once at startup. Trim whitespace/CRLF.
+UNAME_S=$(uname -s 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
+
+# Solaris: no /proc/cpuinfo, no free, no grep -E. Set once so every code path can guard.
+IS_SOLARIS=0
+if [[ -f /etc/release ]] && [[ ! -f /proc/cpuinfo ]]; then
+    IS_SOLARIS=1
+elif [[ "$UNAME_S" == SunOS* ]] || [[ "$UNAME_S" = "SunOS" ]]; then
+    IS_SOLARIS=1
+fi
+
+# Solaris /usr/bin/grep does not support -E. Use egrep everywhere (works on Linux, Solaris, AIX, HP-UX).
+# No grep -E on any line.
+
 # Default values
 MODE="standard"
 CREATE_SUPPORT_CASE=false
@@ -63,11 +77,44 @@ NC='\033[0m' # No Color
 #############################################################################
 
 detect_os() {
-    local uname_s=$(uname -s)
+    local uname_s
+    uname_s=$(uname -s 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
     local uname_v=$(uname -v 2>/dev/null || echo "")
     
-    # Detect Unix variants with detailed version info
-    if [[ "$uname_s" == "AIX" ]]; then
+    # Use UNAME_S if already set (e.g. at script start); ensures consistency with collect_system_info
+    [[ -n "$UNAME_S" ]] && uname_s="$UNAME_S"
+    
+    # Solaris first: /etc/release and no /proc/cpuinfo = Solaris. No uname needed.
+    if [[ -f /etc/release ]] && [[ ! -f /proc/cpuinfo ]]; then
+        OS_VERSION=$(uname -r 2>/dev/null || echo "unknown")
+        OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
+        local release_info
+        release_info=$(head -1 /etc/release)
+        if egrep -qi "openindiana" /etc/release 2>/dev/null; then
+            DISTRO="openindiana"
+            OS_NAME="OpenIndiana $(sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
+        elif egrep -qi "omnios" /etc/release 2>/dev/null; then
+            DISTRO="omnios"
+            OS_NAME="OmniOS $(sed -n 's/.*\(r[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
+        elif egrep -qi "smartos" /etc/release 2>/dev/null; then
+            DISTRO="smartos"
+            OS_NAME="SmartOS"
+        elif egrep -qi "illumos" /etc/release 2>/dev/null; then
+            DISTRO="illumos"
+            OS_NAME="Illumos"
+        elif egrep -qi "Oracle Solaris 11" /etc/release 2>/dev/null; then
+            DISTRO="solaris11"
+            OS_NAME="Oracle Solaris 11"
+        elif egrep -qi "Oracle Solaris 10" /etc/release 2>/dev/null; then
+            DISTRO="solaris10"
+            OS_NAME="Oracle Solaris 10"
+        else
+            DISTRO="solaris"
+            OS_NAME="$release_info"
+        fi
+        IS_SOLARIS=1
+    # Detect by uname
+    elif [[ "$uname_s" == "AIX" ]]; then
         DISTRO="aix"
         OS_VERSION=$(oslevel 2>/dev/null || echo "unknown")
         OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f1)
@@ -103,26 +150,26 @@ detect_os() {
         OS_VERSION=$(uname -r)
         OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
         
-        # Distinguish Solaris versions and derivatives
+        # Distinguish Solaris versions and derivatives (use egrep and sed - no grep -E/-o on Solaris)
         if [[ -f /etc/release ]]; then
-            local release_info=$(cat /etc/release | head -1)
+            local release_info=$(head -1 /etc/release)
             
-            if grep -qi "openindiana" /etc/release; then
+            if egrep -qi "openindiana" /etc/release 2>/dev/null; then
                 DISTRO="openindiana"
-                OS_NAME="OpenIndiana $(grep -oE '[0-9]+\.[0-9]+' /etc/release | head -1)"
-            elif grep -qi "omnios" /etc/release; then
+                OS_NAME="OpenIndiana $(sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
+            elif egrep -qi "omnios" /etc/release 2>/dev/null; then
                 DISTRO="omnios"
-                OS_NAME="OmniOS $(grep -oE 'r[0-9]+' /etc/release | head -1)"
-            elif grep -qi "smartos" /etc/release; then
+                OS_NAME="OmniOS $(sed -n 's/.*\(r[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
+            elif egrep -qi "smartos" /etc/release 2>/dev/null; then
                 DISTRO="smartos"
                 OS_NAME="SmartOS"
-            elif grep -qi "illumos" /etc/release; then
+            elif egrep -qi "illumos" /etc/release 2>/dev/null; then
                 DISTRO="illumos"
                 OS_NAME="Illumos"
-            elif grep -qi "Oracle Solaris 11" /etc/release; then
+            elif egrep -qi "Oracle Solaris 11" /etc/release 2>/dev/null; then
                 DISTRO="solaris11"
                 OS_NAME="Oracle Solaris 11"
-            elif grep -qi "Oracle Solaris 10" /etc/release; then
+            elif egrep -qi "Oracle Solaris 10" /etc/release 2>/dev/null; then
                 DISTRO="solaris10"
                 OS_NAME="Oracle Solaris 10"
             else
@@ -133,7 +180,7 @@ detect_os() {
             DISTRO="solaris"
             OS_NAME="SunOS $OS_VERSION"
         fi
-        
+        IS_SOLARIS=1
         log_info "Solaris/Illumos Details:"
         log_info "  Kernel: SunOS $OS_VERSION"
         log_info "  Distribution: $OS_NAME"
@@ -146,10 +193,30 @@ detect_os() {
         OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f1)
         OS_NAME="${PRETTY_NAME:-$ID}"
     else
-        DISTRO="unknown"
-        OS_VERSION="unknown"
-        OS_VERSION_MAJOR="0"
-        OS_NAME="Unknown Unix"
+        # Fallback: file-based Solaris (etc/release, no /proc/cpuinfo) or uname SunOS. Never leave Solaris as "Unknown Unix".
+        if [[ -f /etc/release ]] && [[ ! -f /proc/cpuinfo ]]; then
+            OS_VERSION=$(uname -r 2>/dev/null || echo "unknown")
+            OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
+            DISTRO="solaris"
+            OS_NAME=$(head -1 /etc/release)
+            IS_SOLARIS=1
+        elif [[ "$uname_s" == "SunOS" ]] || [[ "$UNAME_S" == "SunOS" ]] || [[ "$uname_s" == SunOS* ]]; then
+            OS_VERSION=$(uname -r 2>/dev/null || echo "unknown")
+            OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
+            if [[ -f /etc/release ]]; then
+                DISTRO="solaris"
+                OS_NAME=$(head -1 /etc/release)
+            else
+                DISTRO="solaris"
+                OS_NAME="SunOS $OS_VERSION"
+            fi
+            IS_SOLARIS=1
+        else
+            DISTRO="unknown"
+            OS_VERSION="unknown"
+            OS_VERSION_MAJOR="0"
+            OS_NAME="Unknown Unix"
+        fi
     fi
     
     # Determine package manager based on distro and version
@@ -392,6 +459,16 @@ install_package() {
             MISSING_PACKAGES+=("$package")
             return 1
             ;;
+        pkg)
+            # Solaris 11+ / Illumos IPS
+            if pkg install -q --accept "$package" 2>/dev/null; then
+                log_success "${package} installed successfully"
+                return 0
+            fi
+            log_warning "pkg install failed for ${package} - install manually: pkg install ${package}"
+            MISSING_PACKAGES+=("$package")
+            return 1
+            ;;
         *)
             log_warning "Unknown package manager - cannot auto-install ${package}"
             MISSING_PACKAGES+=("$package")
@@ -422,10 +499,10 @@ check_and_install_dependencies() {
             required_commands=("vmstat" "iostat" "netstat" "sar" "swapinfo")
             package_map=("base" "base" "base" "base" "base")
             ;;
-        solaris|illumos)
-            # Solaris/Illumos - most tools are built-in
+        solaris*|illumos|openindiana|omnios|smartos)
+            # Solaris/Illumos - vmstat, iostat, netstat, swap, prstat usually base; sar often separate
             required_commands=("vmstat" "iostat" "netstat" "sar" "swap" "prstat")
-            package_map=("base" "base" "base" "base" "base" "base")
+            package_map=("base" "base" "base" "system/sar" "base" "base")
             ;;
         *)
             log_warning "Unknown Unix variant - will attempt to use available tools"
@@ -434,27 +511,41 @@ check_and_install_dependencies() {
     esac
     
     local missing=false
+    local to_install=()
     for i in "${!required_commands[@]}"; do
         local cmd="${required_commands[$i]}"
         local pkg="${package_map[$i]}"
         
         if ! command -v "$cmd" >/dev/null 2>&1; then
             log_warning "${cmd} not found"
-            
-            if [[ "$pkg" != "base" ]]; then
-                log_warning "${cmd} package installation not automated for ${DISTRO}"
-                missing=true
-            else
-                log_warning "${cmd} should be part of base system but is missing"
-                missing=true
+            missing=true
+            if [[ "$pkg" != "base" ]] && [[ -n "$pkg" ]]; then
+                to_install+=("$pkg")
             fi
         fi
     done
+    
+    # Try to install missing packages where we have a known package name (Solaris IPS)
+    if [[ ${#to_install[@]} -gt 0 ]] && [[ "$PACKAGE_MANAGER" == "pkg" ]]; then
+        for pkg in "${to_install[@]}"; do
+            log_info "Attempting to install ${pkg} (provides missing utility)..."
+            install_package "$pkg" || true
+        done
+        # Re-check: are any required commands still missing?
+        missing=false
+        for i in "${!required_commands[@]}"; do
+            if ! command -v "${required_commands[$i]}" >/dev/null 2>&1; then
+                missing=true
+                break
+            fi
+        done
+    fi
     
     if [[ "$missing" == true ]]; then
         log_warning "Some utilities are missing - diagnostics will be limited"
         echo "" | tee -a "$OUTPUT_FILE"
         echo "The script will continue with available tools..." | tee -a "$OUTPUT_FILE"
+        echo "To install missing tools on Solaris 11: pkg install system/sar" | tee -a "$OUTPUT_FILE"
     else
         log_success "All required utilities are available"
     fi
@@ -528,28 +619,127 @@ collect_system_info() {
     
     log_info "Gathering system information..."
     
-    # Basic system info
-    echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
-    echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
-    echo "OS: $(cat /etc/os-release | grep PRETTY_NAME | cut -d'"' -f2)" | tee -a "$OUTPUT_FILE"
-    echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
-    echo "Uptime: $(uptime -p)" | tee -a "$OUTPUT_FILE"
+    # SOLARIS: IS_SOLARIS set at script start. Never run free, grep, or touch /proc.
+    if [[ "$IS_SOLARIS" -eq 1 ]]; then
+        echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+        echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+        echo "OS: $(head -1 /etc/release)" | tee -a "$OUTPUT_FILE"
+        echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+        echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+        echo "CPU Cores: $(psrinfo 2>/dev/null | wc -l)" | tee -a "$OUTPUT_FILE"
+        if command -v swap >/dev/null 2>&1; then
+            echo "Memory (swap -s): $(swap -s 2>/dev/null)" | tee -a "$OUTPUT_FILE"
+        else
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+        fi
+        echo "Instance ID: Not EC2" | tee -a "$OUTPUT_FILE"
+        log_success "System information collected"
+        return
+    fi
     
-    # CPU info
-    local cpu_model=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | xargs)
-    local cpu_cores=$(nproc)
-    echo "CPU: ${cpu_model}" | tee -a "$OUTPUT_FILE"
-    echo "CPU Cores: ${cpu_cores}" | tee -a "$OUTPUT_FILE"
+    # SunOS by uname (backup): use ONLY Solaris commands. Return immediately.
+    if [[ "$UNAME_S" == SunOS* ]] || [[ "$UNAME_S" = "SunOS" ]]; then
+        echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+        echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+        if [[ -f /etc/release ]]; then
+            echo "OS: $(head -1 /etc/release)" | tee -a "$OUTPUT_FILE"
+        else
+            echo "OS: ${OS_NAME:-SunOS}" | tee -a "$OUTPUT_FILE"
+        fi
+        echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+        echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+        echo "CPU Cores: $(psrinfo 2>/dev/null | wc -l)" | tee -a "$OUTPUT_FILE"
+        if command -v swap >/dev/null 2>&1; then
+            echo "Memory (swap -s): $(swap -s 2>/dev/null)" | tee -a "$OUTPUT_FILE"
+        else
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+        fi
+        echo "Instance ID: Not EC2" | tee -a "$OUTPUT_FILE"
+        log_success "System information collected"
+        return
+    fi
     
-    # Memory info
-    local total_mem=$(free -h | grep Mem | awk '{print $2}')
-    echo "Total Memory: ${total_mem}" | tee -a "$OUTPUT_FILE"
+    # Non-SunOS only below (AIX, HP-UX, Linux)
+    case "$UNAME_S" in
+        AIX)
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            echo "OS: ${OS_NAME:-AIX}" | tee -a "$OUTPUT_FILE"
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            local cpu_count=$(lsdev -Cc processor 2>/dev/null | grep -c Available || echo "?")
+            echo "CPU Cores: ${cpu_count}" | tee -a "$OUTPUT_FILE"
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            ;;
+        HP-UX)
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            echo "OS: ${OS_NAME:-HP-UX}" | tee -a "$OUTPUT_FILE"
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            local cpu_count=$(ioscan -kC processor 2>/dev/null | grep -c processor || echo "?")
+            echo "CPU Cores: ${cpu_count}" | tee -a "$OUTPUT_FILE"
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            ;;
+        *)
+            # Linux or other: use DISTRO for details, but only run free/nproc on Linux
+            case "$DISTRO" in
+        aix)
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            echo "OS: ${OS_NAME:-AIX}" | tee -a "$OUTPUT_FILE"
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            local cpu_count=$(lsdev -Cc processor 2>/dev/null | grep -c Available || echo "?")
+            echo "CPU Cores: ${cpu_count}" | tee -a "$OUTPUT_FILE"
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            ;;
+        hpux)
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            echo "OS: ${OS_NAME:-HP-UX}" | tee -a "$OUTPUT_FILE"
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            local cpu_count=$(ioscan -kC processor 2>/dev/null | grep -c processor || echo "?")
+            echo "CPU Cores: ${cpu_count}" | tee -a "$OUTPUT_FILE"
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            ;;
+        solaris*|illumos|openindiana|omnios|smartos)
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            if [[ -f /etc/release ]]; then
+                echo "OS: $(head -1 /etc/release)" | tee -a "$OUTPUT_FILE"
+            else
+                echo "OS: ${OS_NAME:-SunOS}" | tee -a "$OUTPUT_FILE"
+            fi
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            local cpu_count=$(psrinfo 2>/dev/null | wc -l)
+            echo "CPU Cores: ${cpu_count}" | tee -a "$OUTPUT_FILE"
+            if command -v swap >/dev/null 2>&1; then
+                echo "Memory (swap -s): $(swap -s 2>/dev/null)" | tee -a "$OUTPUT_FILE"
+            else
+                echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            fi
+            ;;
+        *)
+            # Linux or unknown: no grep, no free, no /proc. Use variables only.
+            echo "Hostname: $(hostname)" | tee -a "$OUTPUT_FILE"
+            echo "Kernel: $(uname -r)" | tee -a "$OUTPUT_FILE"
+            echo "OS: ${OS_NAME:-unknown}" | tee -a "$OUTPUT_FILE"
+            echo "Architecture: $(uname -m)" | tee -a "$OUTPUT_FILE"
+            echo "Uptime: $(uptime)" | tee -a "$OUTPUT_FILE"
+            echo "Memory: (see MEMORY FORENSICS section)" | tee -a "$OUTPUT_FILE"
+            ;;
+            esac
+            ;;
+    esac
     
-    # Check if running on EC2
+    # EC2 check (works from any supported OS)
     if curl -s -m 2 http://169.254.169.254/latest/meta-data/instance-id &>/dev/null; then
-        local instance_id=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
-        local instance_type=$(curl -s http://169.254.169.254/latest/meta-data/instance-type)
-        local az=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone)
+        local instance_id=$(curl -s -m 2 http://169.254.169.254/latest/meta-data/instance-id)
+        local instance_type=$(curl -s -m 2 http://169.254.169.254/latest/meta-data/instance-type)
+        local az=$(curl -s -m 2 http://169.254.169.254/latest/meta-data/placement/availability-zone)
         echo "Instance ID: ${instance_id}" | tee -a "$OUTPUT_FILE"
         echo "Instance Type: ${instance_type}" | tee -a "$OUTPUT_FILE"
         echo "Availability Zone: ${az}" | tee -a "$OUTPUT_FILE"
@@ -581,7 +771,7 @@ analyze_cpu() {
         hpux)
             analyze_cpu_hpux
             ;;
-        solaris|illumos)
+        solaris*|illumos|openindiana|omnios|smartos)
             analyze_cpu_solaris
             ;;
         *)
@@ -817,7 +1007,7 @@ analyze_memory() {
         hpux)
             analyze_memory_hpux
             ;;
-        solaris|illumos)
+        solaris*|illumos|openindiana|omnios|smartos)
             analyze_memory_solaris
             ;;
         *)
@@ -1010,7 +1200,7 @@ analyze_disk() {
         hpux)
             analyze_disk_hpux
             ;;
-        solaris|illumos)
+        solaris*|illumos|openindiana|omnios|smartos)
             analyze_disk_solaris
             ;;
         *)
@@ -1340,7 +1530,7 @@ analyze_storage_profile() {
         hpux)
             analyze_storage_profile_hpux
             ;;
-        solaris|illumos)
+        solaris*|illumos|openindiana|omnios|smartos)
             analyze_storage_profile_solaris
             ;;
         *)
@@ -1519,7 +1709,7 @@ analyze_storage_profile_aix() {
         echo "Physical Volume Details:" | tee -a "$OUTPUT_FILE"
         for pv in $(lspv | awk '{print $1}'); do
             echo "  === $pv ===" | tee -a "$OUTPUT_FILE"
-            lspv "$pv" 2>/dev/null | grep -E "PHYSICAL VOLUME|PV STATE|TOTAL PPs|FREE PPs|PP SIZE" | tee -a "$OUTPUT_FILE"
+            lspv "$pv" 2>/dev/null | egrep "PHYSICAL VOLUME|PV STATE|TOTAL PPs|FREE PPs|PP SIZE" | tee -a "$OUTPUT_FILE"
         done
     fi
     
@@ -1533,7 +1723,7 @@ analyze_storage_profile_aix() {
         echo "Volume Group Details:" | tee -a "$OUTPUT_FILE"
         for vg in $(lsvg); do
             echo "  === $vg ===" | tee -a "$OUTPUT_FILE"
-            lsvg "$vg" 2>/dev/null | grep -E "VG STATE|PP SIZE|TOTAL PPs|FREE PPs|QUORUM" | tee -a "$OUTPUT_FILE"
+            lsvg "$vg" 2>/dev/null | egrep "VG STATE|PP SIZE|TOTAL PPs|FREE PPs|QUORUM" | tee -a "$OUTPUT_FILE"
             
             # Check for quorum issues
             local quorum=$(lsvg "$vg" 2>/dev/null | grep "QUORUM" | awk '{print $2}')
@@ -1650,14 +1840,14 @@ analyze_storage_profile_aix() {
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Sequential Write Test:" | tee -a "$OUTPUT_FILE"
         local write_result=$(dd if=/dev/zero of="$test_file" bs=1M count=512 2>&1)
-        echo "$write_result" | grep -E "bytes|MB/s" | tee -a "$OUTPUT_FILE"
+        echo "$write_result" | egrep "bytes|MB/s" | tee -a "$OUTPUT_FILE"
         
         # Read test
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Sequential Read Test:" | tee -a "$OUTPUT_FILE"
         sync
         local read_result=$(dd if="$test_file" of=/dev/null bs=1M 2>&1)
-        echo "$read_result" | grep -E "bytes|MB/s" | tee -a "$OUTPUT_FILE"
+        echo "$read_result" | egrep "bytes|MB/s" | tee -a "$OUTPUT_FILE"
         
         rm -f "$test_file"
     fi
@@ -1844,21 +2034,21 @@ analyze_storage_profile_hpux() {
     if command -v pvdisplay >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Physical Volumes:" | tee -a "$OUTPUT_FILE"
-        pvdisplay 2>/dev/null | grep -E "PV Name|PV Status|Total PE|Free PE" | tee -a "$OUTPUT_FILE"
+        pvdisplay 2>/dev/null | egrep "PV Name|PV Status|Total PE|Free PE" | tee -a "$OUTPUT_FILE"
     fi
     
     # LVM - Volume Groups
     if command -v vgdisplay >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Volume Groups:" | tee -a "$OUTPUT_FILE"
-        vgdisplay 2>/dev/null | grep -E "VG Name|VG Status|Total PE|Free PE|PE Size" | tee -a "$OUTPUT_FILE"
+        vgdisplay 2>/dev/null | egrep "VG Name|VG Status|Total PE|Free PE|PE Size" | tee -a "$OUTPUT_FILE"
     fi
     
     # LVM - Logical Volumes
     if command -v lvdisplay >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Logical Volumes:" | tee -a "$OUTPUT_FILE"
-        lvdisplay 2>/dev/null | grep -E "LV Name|LV Status|LV Size|Current LE" | tee -a "$OUTPUT_FILE"
+        lvdisplay 2>/dev/null | egrep "LV Name|LV Status|LV Size|Current LE" | tee -a "$OUTPUT_FILE"
     fi
     
     # ==========================================================================
@@ -2106,7 +2296,7 @@ analyze_storage_profile_solaris() {
                         echo "    Partition $part_num: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         log_bottleneck "Storage" "Misaligned EFI partition on $disk_base" "Sector $first_sector" "4K aligned" "High"
                     fi
-                done < <(echo "$vtoc_output" | grep -E "^[[:space:]]*[0-9]")
+                done < <(echo "$vtoc_output" | egrep "^[[:space:]]*[0-9]")
                 
             else
                 # VTOC (SMI) disk - check cylinder alignment
@@ -2157,7 +2347,7 @@ analyze_storage_profile_solaris() {
                         echo "    Slice $slice: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         log_bottleneck "Storage" "Misaligned VTOC slice on $disk_base" "Sector $first_sector" "4K aligned" "High"
                     fi
-                done < <(echo "$vtoc_output" | grep -E "^[[:space:]]*[0-9]")
+                done < <(echo "$vtoc_output" | egrep "^[[:space:]]*[0-9]")
             fi
         done
     fi
@@ -2227,7 +2417,7 @@ analyze_storage_profile_solaris() {
     if command -v format >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
-        echo "" | format 2>/dev/null | grep -E "^[0-9]|c[0-9]" | tee -a "$OUTPUT_FILE"
+        echo "" | format 2>/dev/null | egrep "^[0-9]|c[0-9]" | tee -a "$OUTPUT_FILE"
     fi
     
     # ZFS Pools (primary storage on modern Solaris/Illumos)
@@ -2270,7 +2460,7 @@ analyze_storage_profile_solaris() {
     
     # Use iostat -En for extended disk info
     if command -v iostat >/dev/null 2>&1; then
-        iostat -En 2>/dev/null | grep -E "^c|Size|Vendor|Product|Serial" | head -40 | tee -a "$OUTPUT_FILE"
+        iostat -En 2>/dev/null | egrep "^c|Size|Vendor|Product|Serial" | head -40 | tee -a "$OUTPUT_FILE"
     fi
     
     # NVMe detection on newer systems
@@ -2323,7 +2513,7 @@ analyze_storage_profile_solaris() {
     if command -v zpool >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool Health:" | tee -a "$OUTPUT_FILE"
-        zpool status -v 2>/dev/null | grep -E "pool:|state:|status:|action:|scan:|errors:" | tee -a "$OUTPUT_FILE"
+        zpool status -v 2>/dev/null | egrep "pool:|state:|status:|action:|scan:|errors:" | tee -a "$OUTPUT_FILE"
         
         # Scrub status
         echo "" | tee -a "$OUTPUT_FILE"
@@ -2425,7 +2615,7 @@ analyze_databases() {
     if pgrep -x oracle >/dev/null 2>&1 || pgrep -f "ora_pmon" >/dev/null 2>&1; then
         db_found=true
         echo "=== Oracle Database Detected ===" | tee -a "$OUTPUT_FILE"
-        ps -ef | grep -E "[o]ra_pmon|[o]racle" | head -5 | tee -a "$OUTPUT_FILE"
+        ps -ef | egrep "[o]ra_pmon|[o]racle" | head -5 | tee -a "$OUTPUT_FILE"
         
         # Connection count
         local oracle_conns=$(netstat -an 2>/dev/null | grep ":1521" | grep -c ESTABLISHED || echo "0")
@@ -2437,7 +2627,7 @@ analyze_databases() {
         db_found=true
         echo "" | tee -a "$OUTPUT_FILE"
         echo "=== IBM DB2 Detected ===" | tee -a "$OUTPUT_FILE"
-        ps -ef | grep -E "[d]b2sysc" | head -5 | tee -a "$OUTPUT_FILE"
+        ps -ef | egrep "[d]b2sysc" | head -5 | tee -a "$OUTPUT_FILE"
         
         # Connection count
         local db2_conns=$(netstat -an 2>/dev/null | grep ":50000" | grep -c ESTABLISHED || echo "0")
@@ -2483,7 +2673,7 @@ analyze_network() {
     if command -v ip >/dev/null 2>&1; then
         ip -br addr 2>/dev/null | tee -a "$OUTPUT_FILE"
     else
-        ifconfig 2>/dev/null | grep -E "^[a-z]|inet " | tee -a "$OUTPUT_FILE" || \
+        ifconfig 2>/dev/null | egrep "^[a-z]|inet " | tee -a "$OUTPUT_FILE" || \
         log_warning "Unable to list network interfaces"
     fi
     
@@ -2534,11 +2724,11 @@ analyze_network() {
         log_warning "netstat and ss not available - skipping connection state analysis"
     fi
     
-    # TCP retransmissions and errors
-    if command -v ss >/dev/null 2>&1; then
+    # TCP retransmissions (Linux ss + grep -oP; skip on Solaris/Unix)
+    if [[ "$(uname -s)" == "Linux" ]] && command -v ss >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "TCP Retransmission Analysis:" | tee -a "$OUTPUT_FILE"
-        local retrans_info=$(ss -ti 2>/dev/null | grep -oP 'retrans:\d+/\d+' | head -20)
+        local retrans_info=$(ss -ti 2>/dev/null | grep -oP 'retrans:\d+/\d+' 2>/dev/null | head -20)
         if [[ -n "$retrans_info" ]]; then
             echo "$retrans_info" | tee -a "$OUTPUT_FILE"
             local total_retrans=$(echo "$retrans_info" | cut -d: -f2 | cut -d/ -f1 | awk '{sum+=$1} END {print sum}')
@@ -2554,7 +2744,7 @@ analyze_network() {
     echo "" | tee -a "$OUTPUT_FILE"
     echo "Network Interface Statistics:" | tee -a "$OUTPUT_FILE"
     if command -v ip >/dev/null 2>&1; then
-        ip -s link 2>/dev/null | grep -E "^\d+:|RX:|TX:|errors" | tee -a "$OUTPUT_FILE"
+        ip -s link 2>/dev/null | egrep "^\d+:|RX:|TX:|errors" | tee -a "$OUTPUT_FILE"
         
         # Check for errors
         local rx_errors=$(ip -s link 2>/dev/null | grep "RX:" -A 1 | grep errors | awk '{sum+=$2} END {print sum}')
@@ -2569,7 +2759,7 @@ analyze_network() {
         fi
     else
         netstat -i 2>/dev/null | tee -a "$OUTPUT_FILE" || \
-        ifconfig 2>/dev/null | grep -E "RX|TX" | tee -a "$OUTPUT_FILE" || \
+        ifconfig 2>/dev/null | egrep "RX|TX" | tee -a "$OUTPUT_FILE" || \
         log_warning "Unable to get network interface statistics"
     fi
     
@@ -2593,7 +2783,7 @@ analyze_network() {
         
         # TCP statistics (if supported - varies by platform)
         case "$DISTRO" in
-            solaris|illumos)
+            solaris*|illumos|openindiana|omnios|smartos)
                 # Solaris has different sar options
                 echo "" | tee -a "$OUTPUT_FILE"
                 echo "Network Stats (netstat -s summary):" | tee -a "$OUTPUT_FILE"
@@ -2635,15 +2825,15 @@ analyze_network() {
         ss -m 2>/dev/null | grep -A 1 "skmem:" | head -20 | tee -a "$OUTPUT_FILE"
     fi
     
-    # Check for dropped packets
-    if [[ -f /proc/net/dev ]]; then
+    # Check for dropped packets (Linux /proc only; skip on Solaris/Unix)
+    if [[ "$(uname -s)" == "Linux" ]] && [[ -f /proc/net/dev ]]; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Dropped Packets by Interface:" | tee -a "$OUTPUT_FILE"
         awk 'NR>2 {print $1, "RX dropped:", $5, "TX dropped:", $13}' /proc/net/dev | column -t | tee -a "$OUTPUT_FILE"
     fi
     
-    # Network buffer/queue statistics
-    if [[ -f /proc/sys/net/core/netdev_max_backlog ]]; then
+    # Network buffer/queue statistics (Linux only)
+    if [[ "$(uname -s)" == "Linux" ]] && [[ -f /proc/sys/net/core/netdev_max_backlog ]]; then
         local max_backlog=$(cat /proc/sys/net/core/netdev_max_backlog)
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Network Queue Settings:" | tee -a "$OUTPUT_FILE"
@@ -2668,7 +2858,7 @@ analyze_network() {
     echo "  MongoDB (27017): ${mongo_conns} connections" | tee -a "$OUTPUT_FILE"
     
     # Check for connection churn (high TIME_WAIT on database ports)
-    local db_time_wait=$(netstat -ant 2>/dev/null | grep -E ":3306|:5432|:1521|:1433|:27017" | grep TIME_WAIT | wc -l || echo "0")
+    local db_time_wait=$(netstat -ant 2>/dev/null | egrep ":3306|:5432|:1521|:1433|:27017" | grep TIME_WAIT | wc -l || echo "0")
     echo "  Database TIME_WAIT: ${db_time_wait}" | tee -a "$OUTPUT_FILE"
     
     if (( db_time_wait > 1000 )); then
@@ -2895,6 +3085,11 @@ main() {
     
     # Detect OS and package manager
     detect_os
+    # Never run as unknown when we know we're Solaris
+    if [[ "$IS_SOLARIS" -eq 1 ]] && [[ "$DISTRO" = "unknown" ]]; then
+        DISTRO="solaris"
+        OS_NAME="Solaris"
+    fi
     
     show_banner
     
