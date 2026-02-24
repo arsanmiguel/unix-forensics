@@ -40,7 +40,7 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 - OpenIndiana / Illumos
 
 **Testing Status:**
-⚠️ This tool is **syntactically validated** but has not been tested on actual AIX, HP-UX, or Solaris hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools.
+⚠️ This tool is **syntactically validated** but has not been tested on actual AIX or HP-UX hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools. Solaris compatibility validated on Solaris 11, ongoing work to locate SunOS10 and older to validate. 
 
 **If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
 
