@@ -42,7 +42,7 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 **Testing Status:**
 ⚠️ This tool is **syntactically validated** but has not been tested on actual AIX, HP-UX, or Solaris hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools.
 
-**If you have access to these systems and would like to help test, please contact:** adrianrs@amazon.com
+**If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
 
 **Note:** The script uses native Unix commands that are typically pre-installed. For database diagnostics, database client tools (mysql, psql, sqlplus, etc.) must be installed separately.
 
@@ -616,7 +616,7 @@ Check the output for specific guidance based on your system.
 ## 🤝 **Support**
 
 ### **Contact**
-- **Report bugs and feature requests:** [adrianrs@amazon.com](mailto:adrianrs@amazon.com)
+- **Report bugs and feature requests:** [adrianr.sanmiguel@gmail.com](mailto:adrianr.sanmiguel@gmail.com)
 
 ### **AWS Support**
 For AWS-specific issues, the tool can automatically create support cases with diagnostic data attached.
@@ -631,7 +631,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
 - Works on-premises and in cloud environments
 - **No warranty or official support provided** - use at your own discretion
-- **Community testing welcome** - contact adrianrs@amazon.com if you can help test on legacy Unix systems
+- **Community testing welcome** - contact adrianr.sanmiguel@gmail.com if you can help test on legacy Unix systems
 
 ### **Expected Performance Impact**
 
