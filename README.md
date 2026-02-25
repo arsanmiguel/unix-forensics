@@ -81,6 +81,33 @@ Solaris 9 is supported in the sense that the script runs and produces a useful r
 
 ---
 
+### **Solaris troubleshooting and how 9, 10, and 11 were validated**
+
+**What the script does on all Solaris (9, 10, 11):**  
+The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn’t support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
+
+**What was done for Solaris 9:**  
+Solaris 9 (SunOS 5.9) ships with very old bash that doesn’t support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. To get the script running on 9 we:
+
+- **Skip `set -o pipefail`** on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don’t exit.
+- **Avoid Bash-isms:** use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
+- **ZFS:** Don’t require or recommend zpool/zfs on 9 (they’re not in OpenCSW); report them as “N/A (ZFS not available on Solaris 9)” and guard any `zfs list` usage so we never call it when `zfs` isn’t present.
+- **`date +%s`:** Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn’t trigger an arithmetic error.
+
+With these changes the script runs end-to-end on Solaris 9 and produces a full forensics summary.
+
+**Getting Solaris 10 and 11 running:**  
+Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
+
+1. **Patch the OS** and key userland (OpenSSL, curl, wget, git) as in “Patch Before You Run” above.
+2. **Use bash from the package manager** so you get a version that supports `pipefail` and normal Bash-isms. On Solaris 11: `pkg install shell/bash`. On 10, install bash from OpenCSW or equivalent if the stock shell is too old.
+3. **Optional but useful:** Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
+4. **ZFS:** On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
+
+If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities** below), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+
+---
+
 ### **Installation**
 
 1. **Clone the repository:**
@@ -696,9 +723,10 @@ For AWS-specific issues, the tool can automatically create support cases with di
 ## 📝 **Version History**
 
 - **v1.1** (February 2026)
-  - **Solaris 9 compatibility:** Skip `pipefail` on SunOS 5.9; portable shell (case instead of `=~`, here-doc instead of `<<<`, scalar lists instead of array `+=`, index loops for `${!array[@]}`); ZFS/zpool reported as N/A on 9, no install pressure; guard `date +%s` (unsupported on 9) so duration does not trigger arithmetic error.
-  - **Solaris detection:** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris.
-  - **README:** Solaris patch requirements (OpenSSL, curl, wget, git); Solaris 9 vs 10/11 differences table; troubleshooting and setup focused on Unix (AIX, HP-UX, Solaris); testing status updated to “Solaris 9–11 x86 tested, SPARC should work”; contact email.
+  - **Solaris (all versions):** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
+  - **Solaris 9 compatibility:** Skip `pipefail` on SunOS 5.9; portable shell (case instead of `=~`, here-doc instead of `<<<`, scalar lists instead of array `+=`, index loops for `${!array[@]}`); ZFS/zpool reported as N/A on 9; guard `date +%s` so duration never triggers arithmetic error. README “Solaris troubleshooting” section describes what was done for 9.
+  - **Solaris 10/11:** Validation on x86 with patched systems; README “Getting Solaris 10 and 11 running” covers patch, bash from pkg, optional sar, ZFS usage, and failure checks.
+  - **README:** Solaris patch requirements; 9 vs 10/11 differences table; full “Solaris troubleshooting and how 9, 10, and 11 were validated” (all-Solaris behavior, what was done for 9, how 10/11 were got going); Unix-focused troubleshooting and setup; testing status (x86 tested, SPARC expected); contact email.
 
 - **v1.0** (January 2026)
   - Initial release: AIX, HP-UX, Solaris, Illumos.
