@@ -497,7 +497,8 @@ check_and_install_dependencies() {
     
     local required_commands=()
     local package_map=()
-    local to_install=()
+    local to_install_list=""
+    local to_install_count=0
     
     # Define required commands and their packages per distro
     case "$DISTRO" in
@@ -533,15 +534,16 @@ check_and_install_dependencies() {
             log_warning "${cmd} not found"
             missing=true
             if [[ "$pkg" != "base" ]] && [[ -n "$pkg" ]]; then
-                to_install+=("$pkg")
+                to_install_list="${to_install_list:+$to_install_list }$pkg"
+                to_install_count=$((to_install_count + 1))
             fi
         fi
         i=$((i + 1))
     done
     
     # Try to install missing packages where we have a known package name (Solaris IPS)
-    if [[ ${#to_install[@]} -gt 0 ]] && [[ "$PACKAGE_MANAGER" == "pkg" ]]; then
-        for pkg in "${to_install[@]}"; do
+    if [[ $to_install_count -gt 0 ]] && [[ "$PACKAGE_MANAGER" == "pkg" ]]; then
+        for pkg in $to_install_list; do
             log_info "Attempting to install ${pkg} (provides missing utility)..."
             install_package "$pkg" || true
         done
