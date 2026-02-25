@@ -39,6 +39,8 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 - Solaris 9, 10, 11 (see Solaris notes below)
 - OpenIndiana / Illumos
 
+A known-good, updated VirtualBox image to pull repositories from GitHub and basic internet connectivity is available on the [Releases](https://github.com/arsanmiguel/unix-forensics/releases) page (tag: `solaris9-rescue-v1.0`).
+
 **Testing Status:**
 ⚠️ **Solaris:** Tested on Solaris 9, 10, and 11 (x86). Should work on SPARC; not yet validated on that architecture. **AIX / HP-UX:** Syntactically validated but not tested on actual hardware due to limited access; the script uses standard Unix commands and graceful degradation for missing tools.
 
