@@ -40,7 +40,7 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 - OpenIndiana / Illumos
 
 **Testing Status:**
-⚠️ This tool is **syntactically validated** but has not been tested on actual AIX or HP-UX hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools. Solaris compatibility validated on Solaris 9 through 11 (painfully).
+⚠️ **Solaris:** Tested on Solaris 9, 10, and 11 (x86). Should work on SPARC; not yet validated on that architecture. **AIX / HP-UX:** Syntactically validated but not tested on actual hardware due to limited access; the script uses standard Unix commands and graceful degradation for missing tools.
 
 **If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
 
@@ -111,7 +111,7 @@ sudo ./invoke-unix-forensics.sh
 
 **System Detection & Setup:**
 - Automatically detects OS distribution and version
-- Identifies available package manager (apt, yum, dnf, zypper)
+- Identifies available package manager (pkg/IPS on Solaris, rpm on AIX, swinstall on HP-UX)
 - Checks for required utilities (mpstat, iostat, vmstat, netstat, bc)
 - **Automatically installs missing packages** on supported distros
 - Provides manual installation instructions for AIX/HP-UX
@@ -467,7 +467,7 @@ The tool automatically detects:
 - Cassandra
 - Redis
 - Oracle Database
-- Microsoft SQL Server (Linux)
+- Microsoft SQL Server (where applicable)
 - Elasticsearch
 
 </details>
@@ -497,15 +497,13 @@ The tool can automatically create AWS Support cases when performance issues are 
 **Setup:**
 1. **Install AWS CLI:**
 ```bash
-# Amazon Linux / RHEL / CentOS
-sudo yum install -y aws-cli
+# Solaris 11 (IPS)
+sudo pkg install aws-cli
 
-# Ubuntu / Debian
-sudo apt-get install -y awscli
-
-# Or use pip
+# Or use pip (if available on your Unix)
 pip3 install awscli
 ```
+On AIX, HP-UX, or older Solaris you may need to install AWS CLI from source or a port; ensure OpenSSL and Python are patched first.
 
 2. **Configure AWS credentials:**
 ```bash
@@ -544,27 +542,17 @@ aws support describe-services
 <details>
 <summary><strong>Missing Utilities</strong></summary>
 
-**The script automatically handles missing utilities on supported distributions.**
+**The script automatically handles missing utilities on supported Unix variants (e.g. Solaris 11 IPS).**
 
 If automatic installation fails, install manually:
 
-**RHEL / CentOS / Amazon Linux / Rocky / Alma:**
+**Solaris 11:**
 ```bash
-sudo yum install -y sysstat net-tools bc
-# or
-sudo dnf install -y sysstat net-tools bc
+sudo pkg install system/sar   # for sar; vmstat, iostat, swap, prstat are usually in base
 ```
 
-**Ubuntu / Debian:**
-```bash
-sudo apt-get update
-sudo apt-get install -y sysstat net-tools bc
-```
-
-**SUSE:**
-```bash
-sudo zypper install -y sysstat net-tools bc
-```
+**Solaris 10 / 9 (OpenCSW if available):**
+- Use `pkgutil` or OpenCSW packages for sysstat/bc where applicable. ZFS/zpool are not available on Solaris 9.
 
 **AIX:**
 - Install from AIX Toolbox: https://www.ibm.com/support/pages/aix-toolbox-linux-applications
@@ -583,15 +571,13 @@ sudo zypper install -y sysstat net-tools bc
 
 If you see "bash not found" error:
 
-**RHEL / CentOS:**
+**Solaris 11:**
 ```bash
-yum install bash
+pkg install shell/bash
 ```
 
-**Ubuntu / Debian:**
-```bash
-apt-get install bash
-```
+**Solaris 10 / 9 (OpenCSW):**
+- Install bash from OpenCSW if available.
 
 **AIX:**
 - Install bash.rte from AIX Toolbox
@@ -661,7 +647,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 ## ⚠️ **Important Notes**
 
 - This tool requires root/sudo privileges
-- **Testing Status:** Syntactically validated but not tested on actual AIX/HP-UX/Solaris hardware
+- **Testing Status:** Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
 - Script uses **graceful degradation** - continues with available tools if some are missing
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
 - Works on-premises and in cloud environments
@@ -709,7 +695,17 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ## 📝 **Version History**
 
-- **v1.0** (January 2026) - Initial release with AIX, HP-UX, Solaris, and Illumos support
+- **v1.1** (February 2026)
+  - **Solaris 9 compatibility:** Skip `pipefail` on SunOS 5.9; portable shell (case instead of `=~`, here-doc instead of `<<<`, scalar lists instead of array `+=`, index loops for `${!array[@]}`); ZFS/zpool reported as N/A on 9, no install pressure; guard `date +%s` (unsupported on 9) so duration does not trigger arithmetic error.
+  - **Solaris detection:** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris.
+  - **README:** Solaris patch requirements (OpenSSL, curl, wget, git); Solaris 9 vs 10/11 differences table; troubleshooting and setup focused on Unix (AIX, HP-UX, Solaris); testing status updated to “Solaris 9–11 x86 tested, SPARC should work”; contact email.
+
+- **v1.0** (January 2026)
+  - Initial release: AIX, HP-UX, Solaris, Illumos.
+  - Disk labeling and boot configuration (SMI/VTOC, EFI, LVM).
+  - Partition alignment analysis (AIX PP, HP-UX PE, Solaris VTOC/EFI/ZFS ashift).
+  - SAR/sysstat analysis (CPU, memory, disk, network).
+  - Testing status disclaimer; time estimates and performance impact notes.
 
 ---
 
