@@ -24,9 +24,9 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 ```bash
 git clone https://github.com/arsanmiguel/unix-forensics.git && cd unix-forensics
 chmod +x invoke-unix-forensics.sh
-sudo ./invoke-unix-forensics.sh
+./invoke-unix-forensics.sh
 ```
-Then read on for Solaris, AWS Support, or troubleshooting.
+(Run as root or with system administrator privileges.) Then read on for Solaris, AWS Support, or troubleshooting.
 
 **Quick links:** [Install](#installation) · [Usage & tool](#appendix-tool) · [Solaris](#solaris) · [Troubleshooting](#troubleshooting)
 
@@ -47,13 +47,6 @@ Then read on for Solaris, AWS Support, or troubleshooting.
 - [Solaris 9 vs 10/11](#appendix-solaris)
 - [Version History](#version-history)
 
-<details>
-<summary><strong>Note: Enhanced profiling tools (htop, btop, glances)</strong></summary>
-
-Unlike the Linux and macOS versions of this utility, the Unix version does not include htop, btop, or glances support. These modern interactive profilers are typically not available in standard AIX, HP-UX, or Solaris package repositories, and their compilation requirements make them impractical for enterprise Unix environments. The Unix utility relies on native tools (vmstat, iostat, sar, prstat, svmon, etc.) which are well-suited for these platforms.
-
-</details>
-
 ---
 
 <a id="quick-start"></a>
@@ -61,7 +54,7 @@ Unlike the Linux and macOS versions of this utility, the Unix version does not i
 
 ### **Prerequisites**
 - Unix server (see supported OS list below)
-- Root or sudo privileges
+- Root or system administrator privileges
 - Bash or Korn shell
 - AWS CLI (optional, for support case creation)
 
@@ -182,26 +175,28 @@ cd unix-forensics
 chmod +x invoke-unix-forensics.sh
 ```
 
-3. **Run diagnostics:**
+3. **Run diagnostics** (as root or a user with system administrator privileges):
 ```bash
-sudo ./invoke-unix-forensics.sh
+./invoke-unix-forensics.sh
 ```
 
 ---
 
 <a id="available-tool"></a>
-**The script** runs system diagnostics and writes a report to a timestamped file; optional AWS Support case creation when issues are found. **Usage:** `sudo ./invoke-unix-forensics.sh [-m mode] [-s] [-v severity] [-o dir]`. [Full tool reference (what it does, options, output)](#appendix-tool).
+**The script** runs system diagnostics and writes a report to a timestamped file; optional AWS Support case creation when issues are found. **Usage:** Run as root or with system administrator privileges: `./invoke-unix-forensics.sh [-m mode] [-s] [-v severity] [-o dir]`. [Full tool reference (what it does, options, output)](#appendix-tool).
 
 ---
 
 <a id="examples"></a>
 ## **Examples**
 
+Run all script commands as root or with system administrator privileges.
+
 <details>
 <summary><strong>Example 1: Quick Health Check</strong></summary>
 
 ```bash
-sudo ./invoke-unix-forensics.sh -m quick
+./invoke-unix-forensics.sh -m quick
 ```
 Output: 3-minute assessment with automatic bottleneck detection
 
@@ -211,7 +206,7 @@ Output: 3-minute assessment with automatic bottleneck detection
 <summary><strong>Example 2: Production Issue with Auto-Ticket</strong></summary>
 
 ```bash
-sudo ./invoke-unix-forensics.sh -m deep -s -v urgent
+./invoke-unix-forensics.sh -m deep -s -v urgent
 ```
 Output: Comprehensive diagnostics + AWS Support case with all data attached
 
@@ -221,13 +216,13 @@ Output: Comprehensive diagnostics + AWS Support case with all data attached
 <summary><strong>Example 3: Disk Performance Testing</strong></summary>
 
 ```bash
-sudo ./invoke-unix-forensics.sh -m disk
+./invoke-unix-forensics.sh -m disk
 ```
 Output: Detailed disk I/O testing and analysis
 
 </details>
 
----
+### **Use Cases**
 
 <a id="use-cases"></a>
 <details>
@@ -300,7 +295,7 @@ Output: Detailed disk I/O testing and analysis
 
 **Usage:**
 ```bash
-sudo ./invoke-unix-forensics.sh -m deep -s -v high
+./invoke-unix-forensics.sh -m deep -s -v high
 ```
 
 </details>
@@ -310,7 +305,7 @@ sudo ./invoke-unix-forensics.sh -m deep -s -v high
 
 Diagnose MySQL, PostgreSQL, or other database performance problems:
 ```bash
-sudo ./invoke-unix-forensics.sh -m deep -s
+./invoke-unix-forensics.sh -m deep -s
 ```
 
 </details>
@@ -320,7 +315,7 @@ sudo ./invoke-unix-forensics.sh -m deep -s
 
 Identify bottlenecks affecting web application performance:
 ```bash
-sudo ./invoke-unix-forensics.sh -m standard
+./invoke-unix-forensics.sh -m standard
 ```
 
 </details>
@@ -330,7 +325,7 @@ sudo ./invoke-unix-forensics.sh -m standard
 
 Gather baseline performance data for capacity planning:
 ```bash
-sudo ./invoke-unix-forensics.sh -m quick
+./invoke-unix-forensics.sh -m quick
 ```
 
 </details>
@@ -340,14 +335,14 @@ sudo ./invoke-unix-forensics.sh -m quick
 
 When things go wrong:
 ```bash
-sudo ./invoke-unix-forensics.sh -m deep -s -v urgent
+./invoke-unix-forensics.sh -m deep -s -v urgent
 ```
 
 </details>
 
 </details>
 
----
+### **What Bottlenecks Can Be Found**
 
 <a id="what-bottlenecks-can-be-found"></a>
 <details>
@@ -438,7 +433,7 @@ If automatic installation fails, install manually:
 
 **Solaris 11:**
 ```bash
-sudo pkg install system/sar   # for sar; vmstat, iostat, swap, prstat are usually in base
+pkg install system/sar   # for sar; vmstat, iostat, swap, prstat are usually in base (run as root)
 ```
 
 **Solaris 10 / 9 (OpenCSW if available):**
@@ -482,7 +477,7 @@ pkg install shell/bash
 
 The script requires root privileges:
 ```bash
-sudo ./invoke-unix-forensics.sh
+./invoke-unix-forensics.sh
 ```
 
 Or run as root:
@@ -530,8 +525,8 @@ The tool can automatically create AWS Support cases when performance issues are 
 **Setup:**
 1. **Install AWS CLI:**
 ```bash
-# Solaris 11 (IPS)
-sudo pkg install aws-cli
+# Solaris 11 (IPS) — run as root
+pkg install aws-cli
 
 # Or use pip (if available on your Unix)
 pip3 install awscli
@@ -586,7 +581,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 <summary><strong>Important Notes & Performance</strong></summary>
 
 **Important Notes**
-- This tool requires root/sudo privileges
+- This tool requires root or system administrator privileges
 - **Testing Status:** Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
 - Script uses **graceful degradation** - continues with available tools if some are missing
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
@@ -742,28 +737,28 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ```bash
 # Quick diagnostics (3 minutes)
-sudo ./invoke-unix-forensics.sh -m quick
+./invoke-unix-forensics.sh -m quick
 
 # Standard diagnostics (5-10 minutes) - recommended
-sudo ./invoke-unix-forensics.sh -m standard
+./invoke-unix-forensics.sh -m standard
 
 # Deep diagnostics with I/O testing (15-20 minutes)
-sudo ./invoke-unix-forensics.sh -m deep
+./invoke-unix-forensics.sh -m deep
 
 # Auto-create support case if issues found (3 minutes)
-sudo ./invoke-unix-forensics.sh -m standard -s -v high
+./invoke-unix-forensics.sh -m standard -s -v high
 
 # Disk-only diagnostics
-sudo ./invoke-unix-forensics.sh -m disk
+./invoke-unix-forensics.sh -m disk
 
 # CPU-only diagnostics
-sudo ./invoke-unix-forensics.sh -m cpu
+./invoke-unix-forensics.sh -m cpu
 
 # Memory-only diagnostics
-sudo ./invoke-unix-forensics.sh -m memory
+./invoke-unix-forensics.sh -m memory
 
 # Custom output directory
-sudo ./invoke-unix-forensics.sh -m standard -o /var/log
+./invoke-unix-forensics.sh -m standard -o /var/log
 ```
 
 **Options:**
