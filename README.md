@@ -28,12 +28,12 @@ sudo ./invoke-unix-forensics.sh
 ```
 Then read on for Solaris, AWS Support, or troubleshooting.
 
-**Quick links:** [Install](#installation) · [Usage & tool](#available-tool) · [Solaris](#solaris-critical) · [Troubleshooting](#troubleshooting)
+**Quick links:** [Install](#installation) · [Usage & tool](#appendix-tool) · [Solaris](#solaris-critical) · [Troubleshooting](#troubleshooting)
 
 **Contents**
 - [Overview](#overview)
 - [Quick Start](#quick-start)
-- [Available Tool](#available-tool)
+- [Tool reference](#appendix-tool)
 - [Examples](#examples)
 - [Use Cases](#use-cases)
 - [What Bottlenecks Can Be Found](#what-bottlenecks-can-be-found)
@@ -137,164 +137,7 @@ sudo ./invoke-unix-forensics.sh
 ---
 
 <a id="available-tool"></a>
-## 📊 **Available Tool**
-
-### **invoke-unix-forensics.sh**
-**A complete Unix performance diagnostic tool** - comprehensive forensics with automatic issue detection.
-
-<details>
-<summary><strong>What it does</strong></summary>
-
-**System Detection & Setup:**
-- Automatically detects OS distribution and version
-- Identifies available package manager (pkg/IPS on Solaris, rpm on AIX, swinstall on HP-UX)
-- Checks for required utilities (mpstat, iostat, vmstat, netstat, bc)
-- **Automatically installs missing packages** on supported distros
-- Provides manual installation instructions for AIX/HP-UX
-- Continues with graceful degradation if tools unavailable
-
-**CPU Forensics:**
-- Load average analysis (per-core calculation)
-- CPU utilization sampling (10-second average)
-- Context switch rate monitoring
-- CPU steal time detection (hypervisor contention)
-- Top CPU-consuming processes
-- **SAR CPU analysis:** Real-time sampling (sar -u, sar -q)
-- **Historical CPU data:** Automatic detection of /var/adm/sa data
-
-**Memory Forensics:**
-- Memory usage and availability analysis
-- Swap usage monitoring
-- Page fault rate detection
-- Memory pressure indicators (PSI)
-- Slab memory usage analysis
-- OOM (Out of Memory) killer detection
-- Memory leak candidate identification
-- Huge pages status
-- Top memory-consuming processes
-- **SAR memory analysis:** Real-time sampling (sar -r, sar -p/sar -g)
-- **Historical memory data:** Automatic detection of /var/adm/sa data
-
-**Storage Profiling:**
-- Disk labeling/partition scheme detection:
-  - **AIX**: LVM-only architecture (no MBR/GPT concept)
-  - **HP-UX**: LVM, EFI (Itanium) vs PDC (PA-RISC) boot detection
-  - **Solaris/Illumos**: SMI (VTOC) vs EFI (GPT) with >2TB warnings
-- **Partition alignment analysis:**
-  - **AIX**: LVM Physical Partition (PP) size analysis (optimal >= 64MB for SAN)
-  - **HP-UX**: LVM Physical Extent (PE) size and first PE offset alignment
-  - **Solaris**: VTOC slice alignment, EFI partition alignment, ZFS ashift analysis
-- Boot configuration (UEFI vs BIOS/OBP)
-- Filesystem type analysis (ZFS, UFS, JFS, VxFS)
-- Storage topology (LVM, VxVM, SVM, ZFS)
-
-**Disk I/O Forensics:**
-- Filesystem usage monitoring
-- I/O wait time analysis
-- Read/write performance testing (dd-based)
-- Dropped I/O detection
-- Per-device statistics
-- **SAR disk analysis:** Real-time sampling (sar -d, sar -b)
-- **Historical disk data:** Automatic detection of /var/adm/sa data
-
-**Database Forensics:**
-- Automatic detection of running databases
-- Supported: MySQL/MariaDB, PostgreSQL, MongoDB, Cassandra, Redis, Oracle, SQL Server, Elasticsearch
-- **DBA-level query analysis:**
-  - Top 5 queries by CPU time and resource consumption (all platforms)
-  - Long-running queries/operations (>30 seconds)
-  - Blocking and wait state analysis (SQL Server, Oracle)
-  - Connection pool exhaustion and rejection tracking (all platforms)
-  - Thread pool monitoring (Elasticsearch)
-  - Slow operation profiling (MongoDB, Redis)
-- Connection count monitoring
-- Process resource usage (CPU, memory)
-- Connection churn analysis (TIME_WAIT)
-
-**Network Forensics:**
-- Interface status and statistics
-- TCP connection state analysis
-- Retransmission detection
-- RX/TX error monitoring
-- Dropped packet analysis
-- Socket memory usage
-- Network throughput analysis
-- Buffer/queue settings
-- **SAR network analysis:** Real-time sampling (sar -n DEV, sar -n EDEV, sar -n TCP)
-- **Historical network data:** Automatic detection of /var/adm/sa data
-
-**Bottleneck Detection:**
-- Automatically identifies performance issues
-- Categorizes by severity (Critical, High, Medium, Low)
-- Provides threshold comparisons
-- **Creates AWS Support case** with all diagnostic data
-
-**Storage Issues Detected:**
-- **Misaligned partitions/extents** (LVM PP/PE size, slice alignment, ZFS ashift)
-- **SMI (VTOC) label on >2TB disk** (Solaris - only 2TB usable)
-- ZFS pool degraded or faulted
-- SMART drive failures (where smartctl available)
-- AIX Volume Group quorum issues
-- Suboptimal LVM extent sizes for SAN environments
-
-</details>
-
-<details>
-<summary><strong>Usage</strong></summary>
-
-```bash
-# Quick diagnostics (3 minutes)
-sudo ./invoke-unix-forensics.sh -m quick
-
-# Standard diagnostics (5-10 minutes) - recommended
-sudo ./invoke-unix-forensics.sh -m standard
-
-# Deep diagnostics with I/O testing (15-20 minutes)
-sudo ./invoke-unix-forensics.sh -m deep
-
-# Auto-create support case if issues found (3 minutes)
-sudo ./invoke-unix-forensics.sh -m standard -s -v high
-
-# Disk-only diagnostics
-sudo ./invoke-unix-forensics.sh -m disk
-
-# CPU-only diagnostics
-sudo ./invoke-unix-forensics.sh -m cpu
-
-# Memory-only diagnostics
-sudo ./invoke-unix-forensics.sh -m memory
-
-# Custom output directory
-sudo ./invoke-unix-forensics.sh -m standard -o /var/log
-```
-
-**Options:**
-- `-m, --mode` - Diagnostic mode: quick, standard, deep, disk, cpu, memory
-- `-s, --support` - Create AWS Support case if issues found
-- `-v, --severity` - Support case severity: low, normal, high, urgent, critical
-- `-o, --output` - Output directory (default: current directory)
-- `-h, --help` - Show help message
-
-</details>
-
-<details>
-<summary><strong>Output Example</strong></summary>
-
-```
-BOTTLENECKS DETECTED: 3 performance issue(s) found
-
-  CRITICAL ISSUES (1):
-    • Memory: Low available memory
-
-  HIGH PRIORITY (2):
-    • Disk: High I/O wait time
-    • CPU: High load average
-
-Detailed report saved to: unix-forensics-20260114-070000.txt
-AWS Support case created: case-123456789
-```
-
-</details>
+**The script** runs system diagnostics and writes a report to a timestamped file; optional AWS Support case creation when issues are found. **Usage:** `sudo ./invoke-unix-forensics.sh [-m mode] [-s] [-v severity] [-o dir]`. [Full tool reference (what it does, options, output)](#appendix-tool).
 
 ---
 
@@ -742,6 +585,167 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - Monitoring tools (mpstat, iostat, vmstat) run for 10-second intervals
 - Database queries target system/performance tables only, not user data
 - All operations are non-blocking and use minimal system resources
+
+</details>
+
+---
+<a id="appendix-tool"></a>
+## **Appendix: Tool reference**
+
+### **invoke-unix-forensics.sh**
+**A complete Unix performance diagnostic tool** - comprehensive forensics with automatic issue detection.
+
+<details>
+<summary><strong>What it does</strong></summary>
+
+**System Detection & Setup:**
+- Automatically detects OS distribution and version
+- Identifies available package manager (pkg/IPS on Solaris, rpm on AIX, swinstall on HP-UX)
+- Checks for required utilities (mpstat, iostat, vmstat, netstat, bc)
+- **Automatically installs missing packages** on supported distros
+- Provides manual installation instructions for AIX/HP-UX
+- Continues with graceful degradation if tools unavailable
+
+**CPU Forensics:**
+- Load average analysis (per-core calculation)
+- CPU utilization sampling (10-second average)
+- Context switch rate monitoring
+- CPU steal time detection (hypervisor contention)
+- Top CPU-consuming processes
+- **SAR CPU analysis:** Real-time sampling (sar -u, sar -q)
+- **Historical CPU data:** Automatic detection of /var/adm/sa data
+
+**Memory Forensics:**
+- Memory usage and availability analysis
+- Swap usage monitoring
+- Page fault rate detection
+- Memory pressure indicators (PSI)
+- Slab memory usage analysis
+- OOM (Out of Memory) killer detection
+- Memory leak candidate identification
+- Huge pages status
+- Top memory-consuming processes
+- **SAR memory analysis:** Real-time sampling (sar -r, sar -p/sar -g)
+- **Historical memory data:** Automatic detection of /var/adm/sa data
+
+**Storage Profiling:**
+- Disk labeling/partition scheme detection:
+  - **AIX**: LVM-only architecture (no MBR/GPT concept)
+  - **HP-UX**: LVM, EFI (Itanium) vs PDC (PA-RISC) boot detection
+  - **Solaris/Illumos**: SMI (VTOC) vs EFI (GPT) with >2TB warnings
+- **Partition alignment analysis:**
+  - **AIX**: LVM Physical Partition (PP) size analysis (optimal >= 64MB for SAN)
+  - **HP-UX**: LVM Physical Extent (PE) size and first PE offset alignment
+  - **Solaris**: VTOC slice alignment, EFI partition alignment, ZFS ashift analysis
+- Boot configuration (UEFI vs BIOS/OBP)
+- Filesystem type analysis (ZFS, UFS, JFS, VxFS)
+- Storage topology (LVM, VxVM, SVM, ZFS)
+
+**Disk I/O Forensics:**
+- Filesystem usage monitoring
+- I/O wait time analysis
+- Read/write performance testing (dd-based)
+- Dropped I/O detection
+- Per-device statistics
+- **SAR disk analysis:** Real-time sampling (sar -d, sar -b)
+- **Historical disk data:** Automatic detection of /var/adm/sa data
+
+**Database Forensics:**
+- Automatic detection of running databases
+- Supported: MySQL/MariaDB, PostgreSQL, MongoDB, Cassandra, Redis, Oracle, SQL Server, Elasticsearch
+- **DBA-level query analysis:**
+  - Top 5 queries by CPU time and resource consumption (all platforms)
+  - Long-running queries/operations (>30 seconds)
+  - Blocking and wait state analysis (SQL Server, Oracle)
+  - Connection pool exhaustion and rejection tracking (all platforms)
+  - Thread pool monitoring (Elasticsearch)
+  - Slow operation profiling (MongoDB, Redis)
+- Connection count monitoring
+- Process resource usage (CPU, memory)
+- Connection churn analysis (TIME_WAIT)
+
+**Network Forensics:**
+- Interface status and statistics
+- TCP connection state analysis
+- Retransmission detection
+- RX/TX error monitoring
+- Dropped packet analysis
+- Socket memory usage
+- Network throughput analysis
+- Buffer/queue settings
+- **SAR network analysis:** Real-time sampling (sar -n DEV, sar -n EDEV, sar -n TCP)
+- **Historical network data:** Automatic detection of /var/adm/sa data
+
+**Bottleneck Detection:**
+- Automatically identifies performance issues
+- Categorizes by severity (Critical, High, Medium, Low)
+- Provides threshold comparisons
+- **Creates AWS Support case** with all diagnostic data
+
+**Storage Issues Detected:**
+- **Misaligned partitions/extents** (LVM PP/PE size, slice alignment, ZFS ashift)
+- **SMI (VTOC) label on >2TB disk** (Solaris - only 2TB usable)
+- ZFS pool degraded or faulted
+- SMART drive failures (where smartctl available)
+- AIX Volume Group quorum issues
+- Suboptimal LVM extent sizes for SAN environments
+
+</details>
+
+<details>
+<summary><strong>Usage</strong></summary>
+
+```bash
+# Quick diagnostics (3 minutes)
+sudo ./invoke-unix-forensics.sh -m quick
+
+# Standard diagnostics (5-10 minutes) - recommended
+sudo ./invoke-unix-forensics.sh -m standard
+
+# Deep diagnostics with I/O testing (15-20 minutes)
+sudo ./invoke-unix-forensics.sh -m deep
+
+# Auto-create support case if issues found (3 minutes)
+sudo ./invoke-unix-forensics.sh -m standard -s -v high
+
+# Disk-only diagnostics
+sudo ./invoke-unix-forensics.sh -m disk
+
+# CPU-only diagnostics
+sudo ./invoke-unix-forensics.sh -m cpu
+
+# Memory-only diagnostics
+sudo ./invoke-unix-forensics.sh -m memory
+
+# Custom output directory
+sudo ./invoke-unix-forensics.sh -m standard -o /var/log
+```
+
+**Options:**
+- `-m, --mode` - Diagnostic mode: quick, standard, deep, disk, cpu, memory
+- `-s, --support` - Create AWS Support case if issues found
+- `-v, --severity` - Support case severity: low, normal, high, urgent, critical
+- `-o, --output` - Output directory (default: current directory)
+- `-h, --help` - Show help message
+
+</details>
+
+<details>
+<summary><strong>Output Example</strong></summary>
+
+```
+BOTTLENECKS DETECTED: 3 performance issue(s) found
+
+  CRITICAL ISSUES (1):
+    • Memory: Low available memory
+
+  HIGH PRIORITY (2):
+    • Disk: High I/O wait time
+    • CPU: High load average
+
+Detailed report saved to: unix-forensics-20260114-070000.txt
+AWS Support case created: case-123456789
+```
 
 </details>
 
