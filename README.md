@@ -28,11 +28,14 @@ sudo ./invoke-unix-forensics.sh
 ```
 Then read on for Solaris, AWS Support, or troubleshooting.
 
-**Quick links:** [Install](#installation) · [Usage & tool](#appendix-tool) · [Solaris](#solaris-critical) · [Troubleshooting](#troubleshooting)
+**Quick links:** [Install](#installation) · [Usage & tool](#appendix-tool) · [Solaris](#solaris) · [Troubleshooting](#troubleshooting)
 
 **Contents**
 - [Overview](#overview)
 - [Quick Start](#quick-start)
+- [Solaris](#solaris)
+- [AIX](#aix)
+- [HP-UX](#hp-ux)
 - [Tool reference](#appendix-tool)
 - [Examples](#examples)
 - [Use Cases](#use-cases)
@@ -72,13 +75,12 @@ Unlike the Linux and macOS versions of this utility, the Unix version does not i
 
 I've put together an updated VirtualBox image of Solaris 9. Why? You may need to pull repositories from GitHub and it's too much of a hassle to get your systems connected. You could also just take binaries from it for non-internet connected networks. It is available on the [Releases](https://github.com/arsanmiguel/unix-forensics/releases) page (tag: `solaris9-rescue-v1.0`).
 
-**Solaris validation:** Tested on Solaris 9, 10, and 11 (x86). Should work on SPARC; not yet validated on that architecture. **AIX / HP-UX:** Syntactically validated but not tested on actual hardware due to limited access; the script uses standard Unix commands and graceful degradation for missing tools.
-
-**If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
-
-**Note:** The script uses native Unix commands that are typically pre-installed. For database diagnostics, database client tools (mysql, psql, sqlplus, etc.) must be installed separately.
+**Note:** Solaris has been validated on 9, 10, and 11 (x86); SPARC not yet validated. AIX and HP-UX are syntactically validated but not yet tested on actual hardware; the script uses standard Unix commands and graceful degradation for missing tools. If you have access to these systems and would like to help test, please contact: adrianr.sanmiguel@gmail.com
 
 ---
+
+<a id="solaris"></a>
+## **Solaris**
 
 <a id="solaris-critical"></a>
 <details>
@@ -149,6 +151,20 @@ Validation on 10 and 11 (x86) was done on patched systems with a current-ish use
 If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities**), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
 
 </details>
+
+---
+
+<a id="aix"></a>
+## **AIX**
+
+Workin' on it.
+
+---
+
+<a id="hp-ux"></a>
+## **HP-UX**
+
+Workin' on it.
 
 ---
 
