@@ -1500,7 +1500,8 @@ analyze_storage_profile() {
             ;;
         solaris*|illumos|openindiana|omnios|smartos)
             echo "Solaris/Illumos Storage Tools:" | tee -a "$OUTPUT_FILE"
-            for tool in zpool zfs iostat format; do
+            # On Solaris 9 there is no ZFS (introduced in Solaris 10); only require iostat/format
+            for tool in iostat format; do
                 if command -v "$tool" >/dev/null 2>&1; then
                     echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
                 else
@@ -1508,7 +1509,20 @@ analyze_storage_profile() {
                     missing_tools+=("$tool")
                 fi
             done
-            
+            # ZFS tools (Solaris 10+ only; not in OpenCSW for Solaris 9)
+            if [[ "$IS_SOLARIS" -eq 1 ]] && [[ "$SOLARIS_9" -eq 1 ]]; then
+                echo "  [N/A] zpool (ZFS not available on Solaris 9)" | tee -a "$OUTPUT_FILE"
+                echo "  [N/A] zfs (ZFS not available on Solaris 9)" | tee -a "$OUTPUT_FILE"
+            else
+                for tool in zpool zfs; do
+                    if command -v "$tool" >/dev/null 2>&1; then
+                        echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
+                    else
+                        echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
+                        missing_tools+=("$tool")
+                    fi
+                done
+            fi
             # Check for optional/newer tools
             for tool in fcinfo mpathadm diskinfo; do
                 if command -v "$tool" >/dev/null 2>&1; then
@@ -2236,11 +2250,18 @@ analyze_storage_profile_solaris() {
     echo "" | tee -a "$OUTPUT_FILE"
     echo "Filesystem Types:" | tee -a "$OUTPUT_FILE"
     
-    # Count filesystem types
-    local zfs_count=$(zfs list -H 2>/dev/null | wc -l)
+    # Count filesystem types (ZFS not available on Solaris 9)
+    local zfs_count=0
+    if command -v zfs >/dev/null 2>&1; then
+        zfs_count=$(zfs list -H 2>/dev/null | wc -l)
+    fi
     local ufs_count=$(mount -v 2>/dev/null | grep -c "ufs" || echo "0")
     
-    echo "  ZFS: $zfs_count dataset(s) - Modern, recommended" | tee -a "$OUTPUT_FILE"
+    if command -v zfs >/dev/null 2>&1; then
+        echo "  ZFS: $zfs_count dataset(s) - Modern, recommended" | tee -a "$OUTPUT_FILE"
+    else
+        echo "  ZFS: N/A (not available on this release, e.g. Solaris 9)" | tee -a "$OUTPUT_FILE"
+    fi
     if (( ufs_count > 0 )); then
         echo "  UFS: $ufs_count filesystem(s) - Legacy (consider migration to ZFS)" | tee -a "$OUTPUT_FILE"
     fi
