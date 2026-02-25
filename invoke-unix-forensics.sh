@@ -2277,7 +2277,7 @@ analyze_storage_profile_solaris() {
                 
                 # Parse EFI partition info
                 while read -r part_num tag flag first_sector sector_count last_sector mount; do
-                    [[ "$part_num" =~ ^[0-9]+$ ]] || continue
+                    case "$part_num" in ''|*[!0-9]*) continue ;; esac
                     [[ -z "$first_sector" ]] && continue
                     [[ "$first_sector" == "0" ]] && continue
                     
@@ -2322,7 +2322,7 @@ analyze_storage_profile_solaris() {
                 
                 # Parse slice info: Tag Flag First_Sector Sector_Count Last_Sector Mount
                 while read -r slice tag flag first_sector sector_count last_sector mount; do
-                    [[ "$slice" =~ ^[0-9]+$ ]] || continue
+                    case "$slice" in ''|*[!0-9]*) continue ;; esac
                     [[ -z "$first_sector" ]] && continue
                     [[ "$sector_count" == "0" ]] && continue
                     
