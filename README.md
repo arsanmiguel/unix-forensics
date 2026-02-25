@@ -39,7 +39,6 @@ Then read on for Solaris, AWS Support, or troubleshooting.
 - [What Bottlenecks Can Be Found](#what-bottlenecks-can-be-found)
 - [Troubleshooting](#troubleshooting)
 - [Configuration (AWS Support)](#configuration)
-- [What's Included](#whats-included)
 - [Support](#support)
 - [Important Notes & Performance](#important-notes-and-performance)
 - [Appendix: Solaris](#appendix-solaris)
@@ -514,14 +513,6 @@ aws support describe-services
 ```
 
 </details>
-
----
-
-<a id="whats-included"></a>
-## 📦 **What's Included**
-
-- `invoke-unix-forensics.sh` - Comprehensive forensics tool with bottleneck detection
-- `README.md` - This documentation
 
 ---
 
