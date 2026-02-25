@@ -54,10 +54,10 @@ fi
 # Solaris 9 (SunOS 5.9): bash/zsh don't support pipefail; enable it only on other systems.
 SOLARIS_9=0
 if [[ "$UNAME_S" == SunOS* ]] || [[ "$UNAME_S" = "SunOS" ]]; then
-    case "$UNAME_R" in 5.9) SOLARIS_9=1 ;; esac
+    case "$UNAME_R" in 5.9*) SOLARIS_9=1 ;; esac
 fi
 if [[ "$SOLARIS_9" -eq 0 ]]; then
-    set -o pipefail
+    set -o pipefail 2>/dev/null || true
 fi
 
 # Solaris /usr/bin/grep does not support -E. Use egrep everywhere (works on Linux, Solaris, AIX, HP-UX).
