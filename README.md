@@ -16,7 +16,7 @@ Key Features:
 - Automatic AWS Support case creation with diagnostic data
 - Works on-premises and in cloud environments
 
-TL;DR — Run it now
+TL;DR - Run it now
 ```bash
 git clone https://github.com/arsanmiguel/unix-forensics.git && cd unix-forensics
 chmod +x invoke-unix-forensics.sh
@@ -73,7 +73,7 @@ Note: Solaris has been validated on 9, 10, and 11 (x86); SPARC not yet validated
 
 <a id="solaris-critical"></a>
 <details>
-<summary><strong>Solaris: CRITICAL – Patch Before You Run</strong></summary>
+<summary><strong>Solaris: CRITICAL - Patch Before You Run</strong></summary>
 
 Do not run this tool on a Solaris box until the system is patched as current as you can get it.
 
@@ -81,14 +81,14 @@ Solaris (especially 9 and 10) ships with ancient, often vulnerable versions of O
 
 Before you even attempt this on Solaris:
 
-1. Patch the OS – Apply the latest recommended patch clusters / updates for your release (SunOS 5.9, 5.10, or 5.11).
-2. OpenSSL – Ensure OpenSSL (or the platform’s TLS stack) is updated and supports current TLS. Many older Solaris builds are stuck on 0.9.x/1.0.x and are unsafe for anything network-facing.
-3. curl and wget – Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
-4. git – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
+1. Patch the OS - Apply the latest recommended patch clusters / updates for your release (SunOS 5.9, 5.10, or 5.11).
+2. OpenSSL - Ensure OpenSSL (or the platform’s TLS stack) is updated and supports current TLS. Many older Solaris builds are stuck on 0.9.x/1.0.x and are unsafe for anything network-facing.
+3. curl and wget - Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
+4. git - If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
 
 The script tries to be compatible with old Solaris; it does not fix an unpatched, 20-year-old userland. If you're a bench admin still touching this OS: patch fully and then give it a shot.
 
-Note — for bench admins
+Note - for bench admins
 
 > To the bench admins: My sweet summer child. I fought the Old Gods so you wouldn't have to. Proceed with utmost caution. Here be dragons of the absolute highest order. Not Puff. Think *Reign of Fire*'s Bull Dragon, *Slime*'s Veldora (IYKYK), *Game of Thrones*' Drogon.
 >
@@ -114,7 +114,7 @@ The script detects Solaris by OS/release and adjusts automatically. You don't ha
 | Storage tools | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
 | Forensics summary | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
 
-Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does not mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL – Patch Before You Run](#solaris-critical) above.
+Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does not mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL - Patch Before You Run](#solaris-critical) above.
 
 What the script does on all Solaris (9, 10, 11):  
 The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn't support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
@@ -521,7 +521,7 @@ The tool can automatically create AWS Support cases when performance issues are 
 Setup:
 1. Install AWS CLI:
 ```bash
-# Solaris 11 (IPS) — run as root
+# Solaris 11 (IPS) - run as root
 pkg install aws-cli
 
 # Or use pip (if available on your Unix)
@@ -578,7 +578,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 Important Notes
 - This tool requires root or system administrator privileges
-- Testing Status: Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
+- Testing Status: Solaris 9-11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
 - Script uses graceful degradation - continues with available tools if some are missing
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
 - Works on-premises and in cloud environments
