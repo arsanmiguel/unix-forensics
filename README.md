@@ -41,7 +41,7 @@ Then read on for Solaris, AWS Support, or troubleshooting.
 - [Configuration (AWS Support)](#configuration)
 - [Support](#support)
 - [Important Notes & Performance](#important-notes-and-performance)
-- [Appendix: Solaris](#appendix-solaris)
+- [Solaris 9 vs 10/11](#appendix-solaris)
 - [Version History](#version-history)
 
 <details>
@@ -108,9 +108,48 @@ The script tries to be compatible with old Solaris; it does **not** fix an unpat
 
 </details>
 
----
+<a id="appendix-solaris"></a>
+<details>
+<summary><strong>Solaris 9 vs 10/11: version differences and getting each running</strong></summary>
 
-Solaris 9 vs 10/11: different ZFS and shell behavior. [Appendix: Solaris version differences and troubleshooting](#appendix-solaris).
+**Version differences (what the script does)**
+
+The script detects Solaris by OS/release and adjusts automatically. You don't have to pick a "mode" for 9 vs 10 vs 11.
+
+| Item | Solaris 9 (SunOS 5.9) | Solaris 10 / 11, Illumos |
+|------|------------------------|---------------------------|
+| **ZFS** | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
+| **Bash / shell** | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
+| **date** | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
+| **Storage tools** | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
+| **Forensics summary** | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
+
+Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does **not** mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL – Patch Before You Run](#solaris-critical) above.
+
+**What the script does on all Solaris (9, 10, 11):**  
+The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn't support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
+
+**What was done for Solaris 9:**  
+Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. To get the script running on 9 we:
+
+- **Skip `set -o pipefail`** on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don't exit.
+- **Avoid Bash-isms:** use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
+- **ZFS:** Don't require or recommend zpool/zfs on 9 (they're not in OpenCSW); report them as "N/A (ZFS not available on Solaris 9)" and guard any `zfs list` usage so we never call it when `zfs` isn't present.
+- **`date +%s`:** Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn't trigger an arithmetic error.
+
+With these changes the script runs end-to-end on Solaris 9 and produces a full forensics summary.
+
+**Getting Solaris 10 and 11 running:**  
+Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
+
+1. **Patch the OS** and key userland (OpenSSL, curl, wget, git) as in "Patch Before You Run" above.
+2. **Use bash from the package manager** so you get a version that supports `pipefail` and normal Bash-isms. On Solaris 11: `pkg install shell/bash`. On 10, install bash from OpenCSW or equivalent if the stock shell is too old.
+3. **Optional but useful:** Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
+4. **ZFS:** On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
+
+If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities**), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+
+</details>
 
 ---
 
@@ -739,50 +778,6 @@ AWS Support case created: case-123456789
 ```
 
 </details>
-
----
-
-<a id="appendix-solaris"></a>
-## **Appendix: Solaris version differences and troubleshooting**
-
-### **Solaris version differences (what the script does)**
-
-The script detects Solaris by OS/release and adjusts automatically. You don't have to pick a "mode" for 9 vs 10 vs 11.
-
-| Item | Solaris 9 (SunOS 5.9) | Solaris 10 / 11, Illumos |
-|------|------------------------|---------------------------|
-| **ZFS** | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
-| **Bash / shell** | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
-| **date** | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
-| **Storage tools** | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
-| **Forensics summary** | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
-
-Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does **not** mean running on an unpatched 9 box is a good idea; see the patch requirements in [Solaris: CRITICAL – Patch Before You Run](#solaris-critical).
-
-### **Solaris troubleshooting and how 9, 10, and 11 were validated**
-
-**What the script does on all Solaris (9, 10, 11):**  
-The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn't support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
-
-**What was done for Solaris 9:**  
-Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. To get the script running on 9 we:
-
-- **Skip `set -o pipefail`** on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don't exit.
-- **Avoid Bash-isms:** use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
-- **ZFS:** Don't require or recommend zpool/zfs on 9 (they're not in OpenCSW); report them as "N/A (ZFS not available on Solaris 9)" and guard any `zfs list` usage so we never call it when `zfs` isn't present.
-- **`date +%s`:** Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn't trigger an arithmetic error.
-
-With these changes the script runs end-to-end on Solaris 9 and produces a full forensics summary.
-
-**Getting Solaris 10 and 11 running:**  
-Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
-
-1. **Patch the OS** and key userland (OpenSSL, curl, wget, git) as in "Patch Before You Run" above.
-2. **Use bash from the package manager** so you get a version that supports `pipefail` and normal Bash-isms. On Solaris 11: `pkg install shell/bash`. On 10, install bash from OpenCSW or equivalent if the stock shell is too old.
-3. **Optional but useful:** Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
-4. **ZFS:** On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
-
-If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities**), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
 
 ---
 
