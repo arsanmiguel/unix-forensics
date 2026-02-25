@@ -19,7 +19,36 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 - ✅ **Automatic AWS Support case creation** with diagnostic data
 - ✅ Works on-premises and in cloud environments
 
-> **Note on Enhanced Profiling Tools:** Unlike the Linux and macOS versions of this utility, the Unix version does not include htop, btop, or glances support. These modern interactive profilers are typically not available in standard AIX, HP-UX, or Solaris package repositories, and their compilation requirements make them impractical for enterprise Unix environments. The Unix utility relies on native tools (vmstat, iostat, sar, prstat, svmon, etc.) which are well-suited for these platforms.
+**TL;DR — Run it now**
+```bash
+git clone https://github.com/arsanmiguel/unix-forensics.git && cd unix-forensics
+chmod +x invoke-unix-forensics.sh
+sudo ./invoke-unix-forensics.sh
+```
+Then read on for Solaris, AWS Support, or troubleshooting.
+
+**Quick links:** [Install](#installation) · [Usage & tool](#-available-tool) · [Solaris](#solaris-critical--patch-before-you-run) · [Troubleshooting](#-troubleshooting)
+
+**Contents**
+- [Overview](#overview)
+- [Quick Start](#-quick-start)
+- [Available Tool](#-available-tool)
+- [Examples](#-examples)
+- [Use Cases](#-use-cases)
+- [What Bottlenecks Can Be Found](#what-bottlenecks-can-be-found)
+- [Troubleshooting](#-troubleshooting)
+- [Configuration (AWS Support)](#-configuration)
+- [What's Included](#-whats-included)
+- [Support](#-support)
+- [Important Notes & Performance](#important-notes--performance)
+- [Version History](#-version-history)
+
+<details>
+<summary><strong>Note: Enhanced profiling tools (htop, btop, glances)</strong></summary>
+
+Unlike the Linux and macOS versions of this utility, the Unix version does not include htop, btop, or glances support. These modern interactive profilers are typically not available in standard AIX, HP-UX, or Solaris package repositories, and their compilation requirements make them impractical for enterprise Unix environments. The Unix utility relies on native tools (vmstat, iostat, sar, prstat, svmon, etc.) which are well-suited for these platforms.
+
+</details>
 
 ---
 
@@ -339,7 +368,8 @@ Output: Detailed disk I/O testing and analysis
 
 ---
 
-## 🎯 **Use Cases**
+<details>
+<summary><strong>🎯 Use Cases</strong> (DMS, DB perf, web server, EC2, incident response)</summary>
 
 <details>
 <summary><strong>AWS DMS Migrations</strong></summary>
@@ -453,9 +483,12 @@ sudo ./invoke-unix-forensics.sh -m deep -s -v urgent
 
 </details>
 
+</details>
+
 ---
 
-## **What Bottlenecks Can Be Found?**
+<details>
+<summary><strong>What Bottlenecks Can Be Found?</strong> (What the script can detect)</summary>
 
 The tool automatically detects:
 
@@ -525,56 +558,6 @@ The tool automatically detects:
 - Network packet drops
 
 </details>
-
----
-
-## 🔧 **Configuration**
-
-### **AWS Support Integration**
-
-The tool can automatically create AWS Support cases when performance issues are detected.
-
-<details>
-<summary><strong>Setup Instructions</strong></summary>
-
-**Setup:**
-1. **Install AWS CLI:**
-```bash
-# Solaris 11 (IPS)
-sudo pkg install aws-cli
-
-# Or use pip (if available on your Unix)
-pip3 install awscli
-```
-On AIX, HP-UX, or older Solaris you may need to install AWS CLI from source or a port; ensure OpenSSL and Python are patched first.
-
-2. **Configure AWS credentials:**
-```bash
-aws configure
-```
-
-3. **Verify Support API access:**
-```bash
-aws support describe-services
-```
-
-**Required IAM Permissions:**
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "support:CreateCase",
-        "support:AddAttachmentsToSet",
-        "support:AddCommunicationToCase"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
-```
 
 </details>
 
@@ -670,6 +653,58 @@ Check the output for specific guidance based on your system.
 
 ---
 
+## 🔧 **Configuration**
+
+### **AWS Support Integration**
+
+The tool can automatically create AWS Support cases when performance issues are detected.
+
+<details>
+<summary><strong>Setup Instructions</strong></summary>
+
+**Setup:**
+1. **Install AWS CLI:**
+```bash
+# Solaris 11 (IPS)
+sudo pkg install aws-cli
+
+# Or use pip (if available on your Unix)
+pip3 install awscli
+```
+On AIX, HP-UX, or older Solaris you may need to install AWS CLI from source or a port; ensure OpenSSL and Python are patched first.
+
+2. **Configure AWS credentials:**
+```bash
+aws configure
+```
+
+3. **Verify Support API access:**
+```bash
+aws support describe-services
+```
+
+**Required IAM Permissions:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "support:CreateCase",
+        "support:AddAttachmentsToSet",
+        "support:AddCommunicationToCase"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+</details>
+
+---
+
 ## 📦 **What's Included**
 
 - `invoke-unix-forensics.sh` - Comprehensive forensics tool with bottleneck detection
@@ -740,7 +775,8 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ---
 
-## 📝 **Version History**
+<details>
+<summary><strong>📝 Version History</strong></summary>
 
 - **v1.1** (February 2026)
   - **Solaris (all versions):** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
@@ -754,6 +790,8 @@ For AWS-specific issues, the tool can automatically create support cases with di
   - Partition alignment analysis (AIX PP, HP-UX PE, Solaris VTOC/EFI/ZFS ashift).
   - SAR/sysstat analysis (CPU, memory, disk, network).
   - Testing status disclaimer; time estimates and performance impact notes.
+
+</details>
 
 ---
 
