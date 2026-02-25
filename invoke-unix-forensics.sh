@@ -523,7 +523,9 @@ check_and_install_dependencies() {
     
     local missing=false
     local to_install=()
-    for i in "${!required_commands[@]}"; do
+    local num_required=${#required_commands[@]}
+    local i=0
+    while [[ $i -lt $num_required ]]; do
         local cmd="${required_commands[$i]}"
         local pkg="${package_map[$i]}"
         
@@ -534,6 +536,7 @@ check_and_install_dependencies() {
                 to_install+=("$pkg")
             fi
         fi
+        i=$((i + 1))
     done
     
     # Try to install missing packages where we have a known package name (Solaris IPS)
@@ -544,11 +547,13 @@ check_and_install_dependencies() {
         done
         # Re-check: are any required commands still missing?
         missing=false
-        for i in "${!required_commands[@]}"; do
+        i=0
+        while [[ $i -lt $num_required ]]; do
             if ! command -v "${required_commands[$i]}" >/dev/null 2>&1; then
                 missing=true
                 break
             fi
+            i=$((i + 1))
         done
     fi
     
