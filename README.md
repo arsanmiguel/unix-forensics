@@ -1,5 +1,6 @@
 # Unix Performance Forensic Tools
 
+<a id="overview"></a>
 ## Overview
 
 A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. **Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER.** Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
@@ -27,21 +28,21 @@ sudo ./invoke-unix-forensics.sh
 ```
 Then read on for Solaris, AWS Support, or troubleshooting.
 
-**Quick links:** [Install](#installation) · [Usage & tool](#-available-tool) · [Solaris](#solaris-critical--patch-before-you-run) · [Troubleshooting](#-troubleshooting)
+**Quick links:** [Install](#installation) · [Usage & tool](#available-tool) · [Solaris](#solaris-critical) · [Troubleshooting](#troubleshooting)
 
 **Contents**
 - [Overview](#overview)
-- [Quick Start](#-quick-start)
-- [Available Tool](#-available-tool)
-- [Examples](#-examples)
-- [Use Cases](#-use-cases)
+- [Quick Start](#quick-start)
+- [Available Tool](#available-tool)
+- [Examples](#examples)
+- [Use Cases](#use-cases)
 - [What Bottlenecks Can Be Found](#what-bottlenecks-can-be-found)
-- [Troubleshooting](#-troubleshooting)
-- [Configuration (AWS Support)](#-configuration)
-- [What's Included](#-whats-included)
-- [Support](#-support)
-- [Important Notes & Performance](#important-notes--performance)
-- [Version History](#-version-history)
+- [Troubleshooting](#troubleshooting)
+- [Configuration (AWS Support)](#configuration)
+- [What's Included](#whats-included)
+- [Support](#support)
+- [Important Notes & Performance](#important-notes-and-performance)
+- [Version History](#version-history)
 
 <details>
 <summary><strong>Note: Enhanced profiling tools (htop, btop, glances)</strong></summary>
@@ -52,6 +53,7 @@ Unlike the Linux and macOS versions of this utility, the Unix version does not i
 
 ---
 
+<a id="quick-start"></a>
 ## 🚀 **Quick Start**
 
 ### **Prerequisites**
@@ -79,6 +81,7 @@ I've put together an updated VirtualBox image of Solaris 9. Why? You may need to
 
 ---
 
+<a id="solaris-critical"></a>
 <details>
 <summary><strong>Solaris: CRITICAL – Patch Before You Run</strong></summary>
 
@@ -153,6 +156,7 @@ If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash 
 
 ---
 
+<a id="installation"></a>
 ### **Installation**
 
 1. **Clone the repository:**
@@ -173,6 +177,7 @@ sudo ./invoke-unix-forensics.sh
 
 ---
 
+<a id="available-tool"></a>
 ## 📊 **Available Tool**
 
 ### **invoke-unix-forensics.sh**
@@ -334,6 +339,7 @@ AWS Support case created: case-123456789
 
 ---
 
+<a id="examples"></a>
 ## 📖 **Examples**
 
 <details>
@@ -368,6 +374,7 @@ Output: Detailed disk I/O testing and analysis
 
 ---
 
+<a id="use-cases"></a>
 <details>
 <summary><strong>🎯 Use Cases</strong> (DMS, DB perf, web server, EC2, incident response)</summary>
 
@@ -487,6 +494,7 @@ sudo ./invoke-unix-forensics.sh -m deep -s -v urgent
 
 ---
 
+<a id="what-bottlenecks-can-be-found"></a>
 <details>
 <summary><strong>What Bottlenecks Can Be Found?</strong> (What the script can detect)</summary>
 
@@ -563,6 +571,7 @@ The tool automatically detects:
 
 ---
 
+<a id="troubleshooting"></a>
 ## 🛠️ **Troubleshooting**
 
 <details>
@@ -653,6 +662,7 @@ Check the output for specific guidance based on your system.
 
 ---
 
+<a id="configuration"></a>
 ## 🔧 **Configuration**
 
 ### **AWS Support Integration**
@@ -705,6 +715,7 @@ aws support describe-services
 
 ---
 
+<a id="whats-included"></a>
 ## 📦 **What's Included**
 
 - `invoke-unix-forensics.sh` - Comprehensive forensics tool with bottleneck detection
@@ -712,6 +723,7 @@ aws support describe-services
 
 ---
 
+<a id="support"></a>
 ## 🤝 **Support**
 
 ### **Contact**
@@ -722,6 +734,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ---
 
+<a id="important-notes-and-performance"></a>
 <details>
 <summary><strong>Important Notes & Performance</strong></summary>
 
@@ -775,6 +788,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ---
 
+<a id="version-history"></a>
 <details>
 <summary><strong>📝 Version History</strong></summary>
 
