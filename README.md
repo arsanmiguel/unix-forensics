@@ -62,13 +62,15 @@ Solaris (especially 9 and 10) ships with ancient, often vulnerable versions of O
 3. **curl and wget** – Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
 4. **git** – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
 
-If you’re a bench admin still touching this OS: get the box patched and the toolchain updated first. Otherwise you’re one bad TLS handshake or one missing option away from flipping a table. The script tries to be compatible with old Solaris; it does **not** fix an unpatched, 20-year-old userland. Patch first, then run.
+The script tries to be compatible with old Solaris; it does **not** fix an unpatched, 20-year-old userland. If you're a bench admin still touching this OS: patch fully and then give it a shot.
+
+**Note — for bench admins**
 
 > **To the bench admins:** My sweet summer child. I fought the Old Gods so you wouldn't have to. Proceed with **utmost caution**. Here be dragons of the absolute highest order. Not Puff. Think *Reign of Fire*'s Bull Dragon, *Slime*'s Veldora (IYKYK), *Game of Thrones*' Drogon.
 >
 > Do you have a patch disk? If not, **STOP**. Do you have a week to spend mucking through the wayback machine, even with an AI agent to help you munge through broken mirrors and bad packages? **PLEASE STOP**.
 >
-> There is no substitute for a patch disk, a known-good internal patch mirror, or a healthier system with these binaries. I have a known-good, QEMU-based Solaris 9 image available here. Trust me: you don't want to have to go through what I did to get somewhere useful.
+> There is no substitute for a patch disk, a known-good internal patch mirror, or a healthier system with these binaries. I have a known-good, QEMU-based Solaris 9 image [available here](https://github.com/arsanmiguel/unix-forensics/releases/tag/solaris9-rescue-v1.0). Trust me: you don't want to have to go through what I did to get somewhere useful.
 
 </details>
 
