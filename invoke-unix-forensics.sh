@@ -1453,7 +1453,7 @@ analyze_storage_profile() {
     echo "" | tee -a "$OUTPUT_FILE"
     echo "--- CHECKING STORAGE TOOLS ---" | tee -a "$OUTPUT_FILE"
     
-    local missing_tools=()
+    local missing_tools_list=""
     
     case "$DISTRO" in
         aix)
@@ -1463,7 +1463,7 @@ analyze_storage_profile() {
                     echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
                 else
                     echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
-                    missing_tools+=("$tool")
+                    missing_tools_list="${missing_tools_list:+$missing_tools_list }$tool"
                 fi
             done
             
@@ -1483,7 +1483,7 @@ analyze_storage_profile() {
                     echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
                 else
                     echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
-                    missing_tools+=("$tool")
+                    missing_tools_list="${missing_tools_list:+$missing_tools_list }$tool"
                 fi
             done
             
@@ -1506,7 +1506,7 @@ analyze_storage_profile() {
                     echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
                 else
                     echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
-                    missing_tools+=("$tool")
+                    missing_tools_list="${missing_tools_list:+$missing_tools_list }$tool"
                 fi
             done
             # ZFS tools (Solaris 10+ only; not in OpenCSW for Solaris 9)
@@ -1519,7 +1519,7 @@ analyze_storage_profile() {
                         echo "  [OK] $tool" | tee -a "$OUTPUT_FILE"
                     else
                         echo "  [MISSING] $tool" | tee -a "$OUTPUT_FILE"
-                        missing_tools+=("$tool")
+                        missing_tools_list="${missing_tools_list:+$missing_tools_list }$tool"
                     fi
                 done
             fi
@@ -1543,10 +1543,10 @@ analyze_storage_profile() {
             ;;
     esac
     
-    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+    if [[ -n "$missing_tools_list" ]]; then
         echo "" | tee -a "$OUTPUT_FILE"
         log_warning "Some storage tools are missing. Install instructions:"
-        for tool in "${missing_tools[@]}"; do
+        for tool in $missing_tools_list; do
             get_install_instructions "$tool" | tee -a "$OUTPUT_FILE"
         done
     fi
