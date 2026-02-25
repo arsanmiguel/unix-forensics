@@ -48,7 +48,8 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 
 ---
 
-### **Solaris: CRITICAL – Patch Before You Run**
+<details>
+<summary><strong>Solaris: CRITICAL – Patch Before You Run</strong></summary>
 
 **Do not run this tool on a Solaris box until the system is patched as current as you can get it.**
 
@@ -62,6 +63,14 @@ Solaris (especially 9 and 10) ships with ancient, often vulnerable versions of O
 4. **git** – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
 
 If you’re a bench admin still touching this OS: get the box patched and the toolchain updated first. Otherwise you’re one bad TLS handshake or one missing option away from flipping a table. The script tries to be compatible with old Solaris; it does **not** fix an unpatched, 20-year-old userland. Patch first, then run.
+
+> **To the bench admins:** My sweet summer child. I fought the Old Gods so you wouldn't have to. Proceed with **utmost caution**. Here be dragons of the absolute highest order. Not Puff. Think *Reign of Fire*'s Bull Dragon, *Slime*'s Veldora (IYKYK), *Game of Thrones*' Drogon.
+>
+> Do you have a patch disk? If not, **STOP**. Do you have a week to spend mucking through the wayback machine, even with an AI agent to help you munge through broken mirrors and bad packages? **PLEASE STOP**.
+>
+> There is no substitute for a patch disk, a known-good internal patch mirror, or a healthier system with these binaries. I have a known-good, QEMU-based Solaris 9 image available here. Trust me: you don't want to have to go through what I did to get somewhere useful.
+
+</details>
 
 ---
 
@@ -81,7 +90,8 @@ Solaris 9 is supported in the sense that the script runs and produces a useful r
 
 ---
 
-### **Solaris troubleshooting and how 9, 10, and 11 were validated**
+<details>
+<summary><strong>Solaris troubleshooting and how 9, 10, and 11 were validated</strong></summary>
 
 **What the script does on all Solaris (9, 10, 11):**  
 The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn’t support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
@@ -105,6 +115,8 @@ Validation on 10 and 11 (x86) was done on patched systems with a current-ish use
 4. **ZFS:** On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
 
 If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities** below), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+
+</details>
 
 ---
 
@@ -671,8 +683,10 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 ---
 
-## ⚠️ **Important Notes**
+<details>
+<summary><strong>Important Notes & Performance</strong></summary>
 
+**Important Notes**
 - This tool requires root/sudo privileges
 - **Testing Status:** Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
 - Script uses **graceful degradation** - continues with available tools if some are missing
@@ -681,10 +695,10 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - **No warranty or official support provided** - use at your own discretion
 - **Community testing welcome** - contact adrianr.sanmiguel@gmail.com if you can help test on legacy Unix systems
 
-### **Expected Performance Impact**
+**Expected Performance Impact**
 
 **Quick Mode (3 minutes):**
-- CPU: <5% overhead - mostly reading /proc and system stats
+- CPU: <5% overhead - mostly reading system stats (and /proc where available, e.g. Linux)
 - Memory: <50MB - lightweight data collection
 - Disk I/O: Minimal - no performance testing, only stat collection
 - Network: None - passive monitoring only
@@ -717,6 +731,8 @@ For AWS-specific issues, the tool can automatically create support cases with di
 - Monitoring tools (mpstat, iostat, vmstat) run for 10-second intervals
 - Database queries target system/performance tables only, not user data
 - All operations are non-blocking and use minimal system resources
+
+</details>
 
 ---
 
