@@ -497,6 +497,7 @@ check_and_install_dependencies() {
     
     local required_commands=()
     local package_map=()
+    local to_install=()
     
     # Define required commands and their packages per distro
     case "$DISTRO" in
@@ -522,7 +523,6 @@ check_and_install_dependencies() {
     esac
     
     local missing=false
-    local to_install=()
     local num_required=${#required_commands[@]}
     local i=0
     while [[ $i -lt $num_required ]]; do
