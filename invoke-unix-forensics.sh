@@ -36,10 +36,12 @@ if [ -z "$BASH_VERSION" ]; then
     fi
 fi
 
-set -euo pipefail
+# pipefail is not supported on Solaris 9 (bash/zsh too old). Set -eu first, then pipefail only when not SunOS 5.9.
+set -eu
 
 # Detect OS once at startup. Trim whitespace/CRLF.
 UNAME_S=$(uname -s 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
+UNAME_R=$(uname -r 2>/dev/null | tr -d '\r\n' || echo "")
 
 # Solaris: no /proc/cpuinfo, no free, no grep -E. Set once so every code path can guard.
 IS_SOLARIS=0
@@ -47,6 +49,15 @@ if [[ -f /etc/release ]] && [[ ! -f /proc/cpuinfo ]]; then
     IS_SOLARIS=1
 elif [[ "$UNAME_S" == SunOS* ]] || [[ "$UNAME_S" = "SunOS" ]]; then
     IS_SOLARIS=1
+fi
+
+# Solaris 9 (SunOS 5.9): bash/zsh don't support pipefail; enable it only on other systems.
+SOLARIS_9=0
+if [[ "$UNAME_S" == SunOS* ]] || [[ "$UNAME_S" = "SunOS" ]]; then
+    case "$UNAME_R" in 5.9) SOLARIS_9=1 ;; esac
+fi
+if [[ "$SOLARIS_9" -eq 0 ]]; then
+    set -o pipefail
 fi
 
 # Solaris /usr/bin/grep does not support -E. Use egrep everywhere (works on Linux, Solaris, AIX, HP-UX).
