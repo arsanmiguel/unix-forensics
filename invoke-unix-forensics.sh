@@ -2902,7 +2902,9 @@ create_support_case() {
     # Build bottleneck summary
     local bottleneck_summary=""
     for bottleneck in "${BOTTLENECKS[@]}"; do
-        IFS='|' read -r impact category issue current threshold <<< "$bottleneck"
+        IFS='|' read -r impact category issue current threshold <<EOF
+$bottleneck
+EOF
         bottleneck_summary+="[${impact}] ${category}: ${issue} (Current: ${current}, Threshold: ${threshold})\n"
     done
     
@@ -3181,7 +3183,9 @@ main() {
         local low=()
         
         for bottleneck in "${BOTTLENECKS[@]}"; do
-            IFS='|' read -r impact category issue current threshold <<< "$bottleneck"
+            IFS='|' read -r impact category issue current threshold <<EOF
+$bottleneck
+EOF
             case "$impact" in
                 Critical) critical+=("${category}: ${issue}") ;;
                 High) high+=("${category}: ${issue}") ;;
