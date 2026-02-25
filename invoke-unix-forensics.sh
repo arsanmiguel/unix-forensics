@@ -3145,7 +3145,8 @@ main() {
     check_and_install_dependencies
     echo ""
     
-    local start_time=$(date +%s)
+    local start_time=$(date +%s 2>/dev/null)
+    case "$start_time" in ''|*[!0-9]*) start_time=0 ;; esac
     
     # Execute diagnostics based on mode
     collect_system_info
@@ -3191,7 +3192,8 @@ main() {
     # Summary
     print_header "FORENSICS SUMMARY"
     
-    local end_time=$(date +%s)
+    local end_time=$(date +%s 2>/dev/null)
+    case "$end_time" in ''|*[!0-9]*) end_time=0 ;; esac
     local duration=$((end_time - start_time))
     
     log_success "Analysis completed in ${duration} seconds"
