@@ -1,24 +1,24 @@
 # Unix Performance Forensic Tools
 
 <a id="overview"></a>
-## Overview
+## **Overview**
 
 A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. **Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER.** Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
 
 **Key Features:**
-- ✅ Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
-- ✅ **Storage profiling** (disk labeling, partition schemes, boot configuration)
-- ✅ **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
-- ✅ Automated bottleneck detection
-- ✅ **Multi-Unix support** (AIX, HP-UX, Solaris, Illumos)
-- ✅ Graceful degradation when tools unavailable
-- ✅ CPU forensics (load average, vmstat, sar, mpstat, prstat)
-- ✅ Memory forensics (svmon, swapinfo, swap analysis, paging space)
-- ✅ Disk I/O testing (iostat, ZFS pools, LVM, volume groups)
-- ✅ **Database forensics** - DBA-level query analysis + DMS readiness checks
-- ✅ Network analysis (connection states, database connectivity)
-- ✅ **Automatic AWS Support case creation** with diagnostic data
-- ✅ Works on-premises and in cloud environments
+- Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
+- **Storage profiling** (disk labeling, partition schemes, boot configuration)
+- **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
+- Automated bottleneck detection
+- **Multi-Unix support** (AIX, HP-UX, Solaris, Illumos)
+- Graceful degradation when tools unavailable
+- CPU forensics (load average, vmstat, sar, mpstat, prstat)
+- Memory forensics (svmon, swapinfo, swap analysis, paging space)
+- Disk I/O testing (iostat, ZFS pools, LVM, volume groups)
+- **Database forensics** - DBA-level query analysis + DMS readiness checks
+- Network analysis (connection states, database connectivity)
+- **Automatic AWS Support case creation** with diagnostic data
+- Works on-premises and in cloud environments
 
 **TL;DR — Run it now**
 ```bash
@@ -54,7 +54,7 @@ Unlike the Linux and macOS versions of this utility, the Unix version does not i
 ---
 
 <a id="quick-start"></a>
-## 🚀 **Quick Start**
+## **Quick Start**
 
 ### **Prerequisites**
 - Unix server (see supported OS list below)
@@ -72,8 +72,7 @@ Unlike the Linux and macOS versions of this utility, the Unix version does not i
 
 I've put together an updated VirtualBox image of Solaris 9. Why? You may need to pull repositories from GitHub and it's too much of a hassle to get your systems connected. You could also just take binaries from it for non-internet connected networks. It is available on the [Releases](https://github.com/arsanmiguel/unix-forensics/releases) page (tag: `solaris9-rescue-v1.0`).
 
-**Testing Status:**
-⚠️ **Solaris:** Tested on Solaris 9, 10, and 11 (x86). Should work on SPARC; not yet validated on that architecture. **AIX / HP-UX:** Syntactically validated but not tested on actual hardware due to limited access; the script uses standard Unix commands and graceful degradation for missing tools.
+**Solaris validation:** Tested on Solaris 9, 10, and 11 (x86). Should work on SPARC; not yet validated on that architecture. **AIX / HP-UX:** Syntactically validated but not tested on actual hardware due to limited access; the script uses standard Unix commands and graceful degradation for missing tools.
 
 **If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
 
@@ -180,7 +179,7 @@ sudo ./invoke-unix-forensics.sh
 ---
 
 <a id="examples"></a>
-## 📖 **Examples**
+## **Examples**
 
 <details>
 <summary><strong>Example 1: Quick Health Check</strong></summary>
@@ -216,7 +215,7 @@ Output: Detailed disk I/O testing and analysis
 
 <a id="use-cases"></a>
 <details>
-<summary><strong>🎯 Use Cases</strong> (DMS, DB perf, web server, EC2, incident response)</summary>
+<summary><strong>Use Cases</strong> (DMS, DB perf, web server, EC2, incident response)</summary>
 
 <details>
 <summary><strong>AWS DMS Migrations</strong></summary>
@@ -228,50 +227,50 @@ Output: Detailed disk I/O testing and analysis
 <details>
 <summary><strong>MySQL/MariaDB</strong></summary>
 
-- ✅ Binary logging enabled (log_bin=ON, required for CDC)
-- ✅ Binlog format set to ROW (required for DMS)
-- ✅ Binary log retention configured (expire_logs_days >= 1)
-- ✅ Replication lag (if source is a replica)
+- Binary logging enabled (log_bin=ON, required for CDC)
+- Binlog format set to ROW (required for DMS)
+- Binary log retention configured (expire_logs_days >= 1)
+- Replication lag (if source is a replica)
 
 </details>
 
 <details>
 <summary><strong>PostgreSQL</strong></summary>
 
-- ✅ WAL level set to 'logical' (required for CDC)
-- ✅ Replication slots configured (max_replication_slots >= 1)
-- ✅ Replication lag (if standby server)
+- WAL level set to 'logical' (required for CDC)
+- Replication slots configured (max_replication_slots >= 1)
+- Replication lag (if standby server)
 
 </details>
 
 <details>
 <summary><strong>Oracle</strong></summary>
 
-- ✅ ARCHIVELOG mode enabled (required for CDC)
-- ✅ Supplemental logging enabled (required for DMS)
-- ✅ Data Guard apply lag (if standby)
+- ARCHIVELOG mode enabled (required for CDC)
+- Supplemental logging enabled (required for DMS)
+- Data Guard apply lag (if standby)
 
 </details>
 
 <details>
 <summary><strong>SQL Server</strong></summary>
 
-- ✅ SQL Server Agent running (required for CDC)
-- ✅ Database recovery model set to FULL (required for CDC)
-- ✅ AlwaysOn replica lag (if applicable)
+- SQL Server Agent running (required for CDC)
+- Database recovery model set to FULL (required for CDC)
+- AlwaysOn replica lag (if applicable)
 
 </details>
 
 <details>
 <summary><strong>All Databases</strong></summary>
 
-- ✅ CloudWatch Logs Agent running
-- ✅ Database connection health
-- ✅ Network connectivity to database ports
-- ✅ Connection churn that could impact DMS
-- ✅ Source database performance issues
-- ✅ Long-running queries/sessions
-- ✅ High connection counts
+- CloudWatch Logs Agent running
+- Database connection health
+- Network connectivity to database ports
+- Connection churn that could impact DMS
+- Source database performance issues
+- Long-running queries/sessions
+- High connection counts
 
 </details>
 
@@ -412,7 +411,7 @@ The tool automatically detects:
 ---
 
 <a id="troubleshooting"></a>
-## 🛠️ **Troubleshooting**
+## **Troubleshooting**
 
 <details>
 <summary><strong>Missing Utilities</strong></summary>
@@ -503,7 +502,7 @@ Check the output for specific guidance based on your system.
 ---
 
 <a id="configuration"></a>
-## 🔧 **Configuration**
+## **Configuration**
 
 ### **AWS Support Integration**
 
@@ -556,7 +555,7 @@ aws support describe-services
 ---
 
 <a id="support"></a>
-## 🤝 **Support**
+## **Support**
 
 ### **Contact**
 - **Report bugs and feature requests:** [adrianr.sanmiguel@gmail.com](mailto:adrianr.sanmiguel@gmail.com)
@@ -783,7 +782,7 @@ AWS Support case created: case-123456789
 
 <a id="version-history"></a>
 <details>
-<summary><strong>📝 Version History</strong></summary>
+<summary><strong>Version History</strong></summary>
 
 - **v1.1** (February 2026)
   - **Solaris (all versions):** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
