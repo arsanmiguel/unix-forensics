@@ -36,15 +36,50 @@ A comprehensive Bash-based diagnostic tool for Unix servers that automatically d
 **Designed For:**
 - AIX 7.1, 7.2, 7.3
 - HP-UX 11i v3
-- Solaris 10, 11
+- Solaris 9, 10, 11 (see Solaris notes below)
 - OpenIndiana / Illumos
 
 **Testing Status:**
-⚠️ This tool is **syntactically validated** but has not been tested on actual AIX or HP-UX hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools. Solaris compatibility validated on Solaris 11, ongoing work to locate SunOS10 and older to validate. 
+⚠️ This tool is **syntactically validated** but has not been tested on actual AIX or HP-UX hardware due to limited access to these legacy systems. The script uses standard Unix commands (vmstat, iostat, sar, etc.) and includes graceful degradation for missing tools. Solaris compatibility validated on Solaris 9 through 11 (painfully).
 
 **If you have access to these systems and would like to help test, please contact:** adrianr.sanmiguel@gmail.com
 
 **Note:** The script uses native Unix commands that are typically pre-installed. For database diagnostics, database client tools (mysql, psql, sqlplus, etc.) must be installed separately.
+
+---
+
+### **Solaris: CRITICAL – Patch Before You Run**
+
+**Do not run this tool on a Solaris box until the system is patched as current as you can get it.**
+
+Solaris (especially 9 and 10) ships with ancient, often vulnerable versions of OpenSSL, curl, wget, and git. Out-of-date builds can break TLS, fail on HTTPS, or expose you to known CVEs. The script and your sanity both assume a minimally modern toolchain.
+
+**Before you even attempt this on Solaris:**
+
+1. **Patch the OS** – Apply the latest recommended patch clusters / updates for your release (SunOS 5.9, 5.10, or 5.11).
+2. **OpenSSL** – Ensure OpenSSL (or the platform’s TLS stack) is updated and supports current TLS. Many older Solaris builds are stuck on 0.9.x/1.0.x and are unsafe for anything network-facing.
+3. **curl and wget** – Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
+4. **git** – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
+
+If you’re a bench admin still touching this OS: get the box patched and the toolchain updated first. Otherwise you’re one bad TLS handshake or one missing option away from flipping a table. The script tries to be compatible with old Solaris; it does **not** fix an unpatched, 20-year-old userland. Patch first, then run.
+
+---
+
+### **Solaris version differences (what the script does)**
+
+The script detects Solaris by OS/release and adjusts automatically. You don’t have to pick a “mode” for 9 vs 10 vs 11.
+
+| Item | Solaris 9 (SunOS 5.9) | Solaris 10 / 11, Illumos |
+|------|------------------------|---------------------------|
+| **ZFS** | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
+| **Bash / shell** | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
+| **date** | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
+| **Storage tools** | Only iostat and format are required. zpool/zfs are listed as “N/A (ZFS not available on Solaris 9)”. | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
+| **Forensics summary** | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
+
+Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does **not** mean running on an unpatched 9 box is a good idea; see the patch requirements above.
+
+---
 
 ### **Installation**
 
