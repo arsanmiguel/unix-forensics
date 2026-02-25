@@ -1,26 +1,22 @@
 # Unix Performance Forensic Tools
 
 <a id="overview"></a>
-## **Overview**
+## Overview
 
-A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. **Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER.** Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
+A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER. Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
 
-**Key Features:**
-- Comprehensive performance forensics (CPU, Memory, Disk, Network, Database)
-- **Storage profiling** (disk labeling, partition schemes, boot configuration)
-- **AWS DMS SOURCE DATABASE diagnostics** (binary logging, replication lag, connection analysis)
+Key Features:
+- Performance forensics: CPU, memory, disk, network, database (vmstat, iostat, sar, prstat, etc.)
+- Storage profiling (disk labeling, partition schemes, boot configuration)
+- AWS DMS source database diagnostics (binary logging, replication lag, connection analysis)
 - Automated bottleneck detection
 - **Multi-Unix support** (AIX, HP-UX, Solaris, Illumos)
 - Graceful degradation when tools unavailable
-- CPU forensics (load average, vmstat, sar, mpstat, prstat)
-- Memory forensics (svmon, swapinfo, swap analysis, paging space)
-- Disk I/O testing (iostat, ZFS pools, LVM, volume groups)
-- **Database forensics** - DBA-level query analysis + DMS readiness checks
-- Network analysis (connection states, database connectivity)
-- **Automatic AWS Support case creation** with diagnostic data
+- Database forensics: DBA-level query analysis and DMS readiness checks
+- Automatic AWS Support case creation with diagnostic data
 - Works on-premises and in cloud environments
 
-**TL;DR — Run it now**
+TL;DR — Run it now
 ```bash
 git clone https://github.com/arsanmiguel/unix-forensics.git && cd unix-forensics
 chmod +x invoke-unix-forensics.sh
@@ -28,15 +24,16 @@ chmod +x invoke-unix-forensics.sh
 ```
 (Run as root or with system administrator privileges.) Then read on for Solaris, AWS Support, or troubleshooting.
 
-**Quick links:** [Install](#installation) · [Usage & tool](#appendix-tool) · [Solaris](#solaris) · [Troubleshooting](#troubleshooting)
+Quick links: [Install](#installation) · [Usage](#available-tool) · [Solaris](#solaris) · [Troubleshooting](#troubleshooting)
 
-**Contents**
+Contents
 - [Overview](#overview)
 - [Quick Start](#quick-start)
 - [Solaris](#solaris)
+- [Solaris 9 vs 10/11](#appendix-solaris)
 - [AIX](#aix)
 - [HP-UX](#hp-ux)
-- [Tool reference](#appendix-tool)
+- [Installation](#installation)
 - [Examples](#examples)
 - [Use Cases](#use-cases)
 - [What Bottlenecks Can Be Found](#what-bottlenecks-can-be-found)
@@ -44,23 +41,22 @@ chmod +x invoke-unix-forensics.sh
 - [Configuration (AWS Support)](#configuration)
 - [Support](#support)
 - [Important Notes & Performance](#important-notes-and-performance)
-- [Solaris 9 vs 10/11](#appendix-solaris)
 - [Version History](#version-history)
 
 ---
 
 <a id="quick-start"></a>
-## **Quick Start**
+## Quick Start
 
-### **Prerequisites**
+### Prerequisites
 - Unix server (see supported OS list below)
 - Root or system administrator privileges
 - Bash or Korn shell
 - AWS CLI (optional, for support case creation)
 
-### **Supported Operating Systems**
+### Supported Operating Systems
 
-**Designed For:**
+Designed For:
 - AIX 7.1, 7.2, 7.3
 - HP-UX 11i v3
 - Solaris 9, 10, 11 (see Solaris notes below)
@@ -68,35 +64,35 @@ chmod +x invoke-unix-forensics.sh
 
 I've put together an updated VirtualBox image of Solaris 9. Why? You may need to pull repositories from GitHub and it's too much of a hassle to get your systems connected. You could also just take binaries from it for non-internet connected networks. It is available on the [Releases](https://github.com/arsanmiguel/unix-forensics/releases) page (tag: `solaris9-rescue-v1.0`).
 
-**Note:** Solaris has been validated on 9, 10, and 11 (x86); SPARC not yet validated. AIX and HP-UX are syntactically validated but not yet tested on actual hardware; the script uses standard Unix commands and graceful degradation for missing tools. If you have access to these systems and would like to help test, please contact: adrianr.sanmiguel@gmail.com
+Note: Solaris has been validated on 9, 10, and 11 (x86); SPARC not yet validated. AIX and HP-UX are syntactically validated but not yet tested on actual hardware; the script uses standard Unix commands and graceful degradation for missing tools. If you have access to these systems and would like to help test, please contact: adrianr.sanmiguel@gmail.com
 
 ---
 
 <a id="solaris"></a>
-## **Solaris**
+## Solaris
 
 <a id="solaris-critical"></a>
 <details>
 <summary><strong>Solaris: CRITICAL – Patch Before You Run</strong></summary>
 
-**Do not run this tool on a Solaris box until the system is patched as current as you can get it.**
+Do not run this tool on a Solaris box until the system is patched as current as you can get it.
 
 Solaris (especially 9 and 10) ships with ancient, often vulnerable versions of OpenSSL, curl, wget, and git. Out-of-date builds can break TLS, fail on HTTPS, or expose you to known CVEs. The script and your sanity both assume a minimally modern toolchain.
 
-**Before you even attempt this on Solaris:**
+Before you even attempt this on Solaris:
 
-1. **Patch the OS** – Apply the latest recommended patch clusters / updates for your release (SunOS 5.9, 5.10, or 5.11).
-2. **OpenSSL** – Ensure OpenSSL (or the platform’s TLS stack) is updated and supports current TLS. Many older Solaris builds are stuck on 0.9.x/1.0.x and are unsafe for anything network-facing.
-3. **curl and wget** – Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
-4. **git** – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
+1. Patch the OS – Apply the latest recommended patch clusters / updates for your release (SunOS 5.9, 5.10, or 5.11).
+2. OpenSSL – Ensure OpenSSL (or the platform’s TLS stack) is updated and supports current TLS. Many older Solaris builds are stuck on 0.9.x/1.0.x and are unsafe for anything network-facing.
+3. curl and wget – Update to versions that support HTTPS and modern TLS. The script and any follow-up (e.g. AWS CLI, support bundles) may need them.
+4. git – If you clone the repo on the box, use a recent enough git that works with HTTPS and doesn’t choke on modern servers.
 
-The script tries to be compatible with old Solaris; it does **not** fix an unpatched, 20-year-old userland. If you're a bench admin still touching this OS: patch fully and then give it a shot.
+The script tries to be compatible with old Solaris; it does not fix an unpatched, 20-year-old userland. If you're a bench admin still touching this OS: patch fully and then give it a shot.
 
-**Note — for bench admins**
+Note — for bench admins
 
-> **To the bench admins:** My sweet summer child. I fought the Old Gods so you wouldn't have to. Proceed with **utmost caution**. Here be dragons of the absolute highest order. Not Puff. Think *Reign of Fire*'s Bull Dragon, *Slime*'s Veldora (IYKYK), *Game of Thrones*' Drogon.
+> To the bench admins: My sweet summer child. I fought the Old Gods so you wouldn't have to. Proceed with utmost caution. Here be dragons of the absolute highest order. Not Puff. Think *Reign of Fire*'s Bull Dragon, *Slime*'s Veldora (IYKYK), *Game of Thrones*' Drogon.
 >
-> Do you have a patch disk? If not, **STOP**. Do you have a week to spend mucking through the wayback machine, even with an AI agent to help you munge through broken mirrors and bad packages? **PLEASE STOP**.
+> Do you have a patch disk? If not, STOP. Do you have a week to spend mucking through the wayback machine, even with an AI agent to help you munge through broken mirrors and bad packages? PLEASE STOP.
 >
 > There is no substitute for a patch disk, a known-good internal patch mirror, or a healthier system with these binaries. I have a known-good, QEMU-based Solaris 9 image [available here](https://github.com/arsanmiguel/unix-forensics/releases/tag/solaris9-rescue-v1.0). Trust me: you don't want to have to go through what I did to get somewhere useful.
 
@@ -106,76 +102,76 @@ The script tries to be compatible with old Solaris; it does **not** fix an unpat
 <details>
 <summary><strong>Solaris 9 vs 10/11: version differences and getting each running</strong></summary>
 
-**Version differences (what the script does)**
+Version differences (what the script does)
 
 The script detects Solaris by OS/release and adjusts automatically. You don't have to pick a "mode" for 9 vs 10 vs 11.
 
 | Item | Solaris 9 (SunOS 5.9) | Solaris 10 / 11, Illumos |
 |------|------------------------|---------------------------|
-| **ZFS** | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
-| **Bash / shell** | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
-| **date** | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
-| **Storage tools** | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
-| **Forensics summary** | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
+| ZFS | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
+| Bash / shell | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
+| date | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
+| Storage tools | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
+| Forensics summary | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
 
-Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does **not** mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL – Patch Before You Run](#solaris-critical) above.
+Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does not mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL – Patch Before You Run](#solaris-critical) above.
 
-**What the script does on all Solaris (9, 10, 11):**  
+What the script does on all Solaris (9, 10, 11):  
 The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn't support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
 
-**What was done for Solaris 9:**  
+What was done for Solaris 9:  
 Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. To get the script running on 9 we:
 
-- **Skip `set -o pipefail`** on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don't exit.
-- **Avoid Bash-isms:** use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
-- **ZFS:** Don't require or recommend zpool/zfs on 9 (they're not in OpenCSW); report them as "N/A (ZFS not available on Solaris 9)" and guard any `zfs list` usage so we never call it when `zfs` isn't present.
-- **`date +%s`:** Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn't trigger an arithmetic error.
+- Skip `set -o pipefail` on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don't exit.
+- Avoid Bash-isms: use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
+- ZFS: Don't require or recommend zpool/zfs on 9 (they're not in OpenCSW); report them as "N/A (ZFS not available on Solaris 9)" and guard any `zfs list` usage so we never call it when `zfs` isn't present.
+- `date +%s`: Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn't trigger an arithmetic error.
 
 With these changes the script runs end-to-end on Solaris 9 and produces a full forensics summary.
 
-**Getting Solaris 10 and 11 running:**  
+Getting Solaris 10 and 11 running:  
 Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
 
-1. **Patch the OS** and key userland (OpenSSL, curl, wget, git) as in "Patch Before You Run" above.
-2. **Use bash from the package manager** so you get a version that supports `pipefail` and normal Bash-isms. On Solaris 11: `pkg install shell/bash`. On 10, install bash from OpenCSW or equivalent if the stock shell is too old.
-3. **Optional but useful:** Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
-4. **ZFS:** On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
+1. Patch the OS and key userland (OpenSSL, curl, wget, git) as in "Patch Before You Run" above.
+2. Use bash from the package manager so you get a version that supports `pipefail` and normal Bash-isms. On Solaris 11: `pkg install shell/bash`. On 10, install bash from OpenCSW or equivalent if the stock shell is too old.
+3. Optional but useful: Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
+4. ZFS: On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
 
-If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see **Troubleshooting → Missing Utilities**), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see Troubleshooting → Missing Utilities), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
 
 </details>
 
 ---
 
 <a id="aix"></a>
-## **AIX**
+## AIX
 
 Workin' on it.
 
 ---
 
 <a id="hp-ux"></a>
-## **HP-UX**
+## HP-UX
 
 Workin' on it.
 
 ---
 
 <a id="installation"></a>
-### **Installation**
+### Installation
 
-1. **Clone the repository:**
+1. Clone the repository:
 ```bash
 git clone https://github.com/arsanmiguel/unix-forensics.git
 cd unix-forensics
 ```
 
-2. **Make executable:**
+2. Make executable:
 ```bash
 chmod +x invoke-unix-forensics.sh
 ```
 
-3. **Run diagnostics** (as root or a user with system administrator privileges):
+3. Run diagnostics (as root or a user with system administrator privileges):
 ```bash
 ./invoke-unix-forensics.sh
 ```
@@ -183,12 +179,12 @@ chmod +x invoke-unix-forensics.sh
 ---
 
 <a id="available-tool"></a>
-**The script** runs system diagnostics and writes a report to a timestamped file; optional AWS Support case creation when issues are found. **Usage:** Run as root or with system administrator privileges: `./invoke-unix-forensics.sh [-m mode] [-s] [-v severity] [-o dir]`. [Full tool reference (what it does, options, output)](#appendix-tool).
+The script runs system diagnostics and writes a report to a timestamped file; optional AWS Support case creation when issues are found. Usage: Run as root or with system administrator privileges: `./invoke-unix-forensics.sh [-m mode] [-s] [-v severity] [-o dir]`.
 
 ---
 
 <a id="examples"></a>
-## **Examples**
+## Examples
 
 Run all script commands as root or with system administrator privileges.
 
@@ -222,7 +218,7 @@ Output: Detailed disk I/O testing and analysis
 
 </details>
 
-### **Use Cases**
+### Use Cases
 
 <a id="use-cases"></a>
 <details>
@@ -231,9 +227,9 @@ Output: Detailed disk I/O testing and analysis
 <details>
 <summary><strong>AWS DMS Migrations</strong></summary>
 
-**This tool is designed to run on your SOURCE DATABASE SERVER**, not on the DMS replication instance (which is AWS-managed).
+This tool is designed to run on your SOURCE DATABASE SERVER, not on the DMS replication instance (which is AWS-managed).
 
-**What it checks for DMS by database type:**
+What it checks for DMS by database type:
 
 <details>
 <summary><strong>MySQL/MariaDB</strong></summary>
@@ -285,7 +281,7 @@ Output: Detailed disk I/O testing and analysis
 
 </details>
 
-**Run this when:**
+Run this when:
 - Planning a DMS migration (pre-migration assessment)
 - DMS replication is slow or stalling
 - Source database performance issues
@@ -293,7 +289,7 @@ Output: Detailed disk I/O testing and analysis
 - Connection errors in DMS logs
 - CDC not capturing changes
 
-**Usage:**
+Usage:
 ```bash
 ./invoke-unix-forensics.sh -m deep -s -v high
 ```
@@ -342,7 +338,7 @@ When things go wrong:
 
 </details>
 
-### **What Bottlenecks Can Be Found**
+### What Bottlenecks Can Be Found
 
 <a id="what-bottlenecks-can-be-found"></a>
 <details>
@@ -388,13 +384,13 @@ The tool automatically detects:
 - High connection churn (>1,000 TIME_WAIT connections on database ports)
 - Excessive resource usage by database processes
 - Top 5 queries by CPU/time, long-running queries (>30s), blocking detection
-- **SQL Server/MySQL/PostgreSQL**: DMV/performance schema queries, active sessions, wait states
-- **MongoDB**: currentOp() and profiler analysis for slow operations
-- **Redis**: SLOWLOG, ops/sec metrics, connection rejection tracking
-- **Oracle**: v$session and v$sql analysis, blocking session detection
-- **Elasticsearch**: Tasks API for long-running searches, thread pool monitoring
+- SQL Server/MySQL/PostgreSQL: DMV/performance schema queries, active sessions, wait states
+- MongoDB: currentOp() and profiler analysis for slow operations
+- Redis: SLOWLOG, ops/sec metrics, connection rejection tracking
+- Oracle: v$session and v$sql analysis, blocking session detection
+- Elasticsearch: Tasks API for long-running searches, thread pool monitoring
 
-**Supported Databases:**
+Supported Databases:
 - MySQL / MariaDB
 - PostgreSQL
 - MongoDB
@@ -422,32 +418,32 @@ The tool automatically detects:
 ---
 
 <a id="troubleshooting"></a>
-## **Troubleshooting**
+## Troubleshooting
 
 <details>
 <summary><strong>Missing Utilities</strong></summary>
 
-**The script automatically handles missing utilities on supported Unix variants (e.g. Solaris 11 IPS).**
+The script automatically handles missing utilities on supported Unix variants (e.g. Solaris 11 IPS).
 
 If automatic installation fails, install manually:
 
-**Solaris 11:**
+Solaris 11:
 ```bash
 pkg install system/sar   # for sar; vmstat, iostat, swap, prstat are usually in base (run as root)
 ```
 
-**Solaris 10 / 9 (OpenCSW if available):**
+Solaris 10 / 9 (OpenCSW if available):
 - Use `pkgutil` or OpenCSW packages for sysstat/bc where applicable. ZFS/zpool are not available on Solaris 9.
 
-**AIX:**
+AIX:
 - Install from AIX Toolbox: https://www.ibm.com/support/pages/aix-toolbox-linux-applications
 - Or use: `rpm -ivh <package>.rpm`
 
-**HP-UX:**
+HP-UX:
 - Install from HP-UX Software Depot
 - Use: `swinstall -s /path/to/depot <package>`
 
-**Note:** The script will continue with limited functionality if some tools are unavailable, using fallback methods where possible.
+Note: The script will continue with limited functionality if some tools are unavailable, using fallback methods where possible.
 
 </details>
 
@@ -456,18 +452,18 @@ pkg install system/sar   # for sar; vmstat, iostat, swap, prstat are usually in 
 
 If you see "bash not found" error:
 
-**Solaris 11:**
+Solaris 11:
 ```bash
 pkg install shell/bash
 ```
 
-**Solaris 10 / 9 (OpenCSW):**
+Solaris 10 / 9 (OpenCSW):
 - Install bash from OpenCSW if available.
 
-**AIX:**
+AIX:
 - Install bash.rte from AIX Toolbox
 
-**HP-UX:**
+HP-UX:
 - Install bash from HP-UX Software Depot
 
 </details>
@@ -513,17 +509,17 @@ Check the output for specific guidance based on your system.
 ---
 
 <a id="configuration"></a>
-## **Configuration**
+## Configuration
 
-### **AWS Support Integration**
+### AWS Support Integration
 
 The tool can automatically create AWS Support cases when performance issues are detected.
 
 <details>
 <summary><strong>Setup Instructions</strong></summary>
 
-**Setup:**
-1. **Install AWS CLI:**
+Setup:
+1. Install AWS CLI:
 ```bash
 # Solaris 11 (IPS) — run as root
 pkg install aws-cli
@@ -533,17 +529,17 @@ pip3 install awscli
 ```
 On AIX, HP-UX, or older Solaris you may need to install AWS CLI from source or a port; ensure OpenSSL and Python are patched first.
 
-2. **Configure AWS credentials:**
+2. Configure AWS credentials:
 ```bash
 aws configure
 ```
 
-3. **Verify Support API access:**
+3. Verify Support API access:
 ```bash
 aws support describe-services
 ```
 
-**Required IAM Permissions:**
+Required IAM Permissions:
 ```json
 {
   "Version": "2012-10-17",
@@ -566,12 +562,12 @@ aws support describe-services
 ---
 
 <a id="support"></a>
-## **Support**
+## Support
 
-### **Contact**
-- **Report bugs and feature requests:** [adrianr.sanmiguel@gmail.com](mailto:adrianr.sanmiguel@gmail.com)
+### Contact
+- Report bugs and feature requests: [adrianr.sanmiguel@gmail.com](mailto:adrianr.sanmiguel@gmail.com)
 
-### **AWS Support**
+### AWS Support
 For AWS-specific issues, the tool can automatically create support cases with diagnostic data attached.
 
 ---
@@ -580,47 +576,47 @@ For AWS-specific issues, the tool can automatically create support cases with di
 <details>
 <summary><strong>Important Notes & Performance</strong></summary>
 
-**Important Notes**
+Important Notes
 - This tool requires root or system administrator privileges
-- **Testing Status:** Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
-- Script uses **graceful degradation** - continues with available tools if some are missing
+- Testing Status: Solaris 9–11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
+- Script uses graceful degradation - continues with available tools if some are missing
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
 - Works on-premises and in cloud environments
-- **No warranty or official support provided** - use at your own discretion
-- **Community testing welcome** - contact adrianr.sanmiguel@gmail.com if you can help test on legacy Unix systems
+- No warranty or official support provided - use at your own discretion
+- Community testing welcome - contact adrianr.sanmiguel@gmail.com if you can help test on legacy Unix systems
 
-**Expected Performance Impact**
+Expected Performance Impact
 
-**Quick Mode (3 minutes):**
+Quick Mode (3 minutes):
 - CPU: <5% overhead - mostly reading system stats (and /proc where available, e.g. Linux)
 - Memory: <50MB - lightweight data collection
 - Disk I/O: Minimal - no performance testing, only stat collection
 - Network: None - passive monitoring only
-- **Safe for production** - read-only operations
+- Safe for production - read-only operations
 
-**Standard Mode (5-10 minutes):**
+Standard Mode (5-10 minutes):
 - CPU: 5-10% overhead - includes sampling and process analysis
 - Memory: <100MB - additional process tree analysis
 - Disk I/O: Minimal - no write testing, only extended stat collection
 - Network: None - passive monitoring only
-- **Safe for production** - read-only operations
+- Safe for production - read-only operations
 
-**Deep Mode (15-20 minutes):**
+Deep Mode (15-20 minutes):
 - CPU: 10-20% overhead - includes dd tests and extended sampling
 - Memory: <150MB - comprehensive process and memory analysis
-- Disk I/O: **Moderate impact** - performs dd read/write tests (1GB writes)
+- Disk I/O: Moderate impact - performs dd read/write tests (1GB writes)
 - Network: None - passive monitoring only
-- **Use caution in production** - disk tests may cause temporary I/O spikes
+- Use caution in production - disk tests may cause temporary I/O spikes
 - Recommendation: Run during maintenance windows or low-traffic periods
 
-**Database Query Analysis (all modes):**
+Database Query Analysis (all modes):
 - CPU: <2% overhead per database - lightweight queries to system tables
 - Memory: <20MB per database - result set caching
 - Database Load: Minimal - uses performance schema/DMVs/system views
-- **Safe for production** - read-only queries, no table locks
+- Safe for production - read-only queries, no table locks
 
-**General Guidelines:**
-- The tool is **read-only** except for disk write tests in deep mode
+General Guidelines:
+- The tool is read-only except for disk write tests in deep mode
 - No application restarts or configuration changes
 - Monitoring tools (mpstat, iostat, vmstat) run for 10-second intervals
 - Database queries target system/performance tables only, not user data
@@ -628,166 +624,6 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 </details>
 
----
-<a id="appendix-tool"></a>
-## **Appendix: Tool reference**
-
-### **invoke-unix-forensics.sh**
-**A complete Unix performance diagnostic tool** - comprehensive forensics with automatic issue detection.
-
-<details>
-<summary><strong>What it does</strong></summary>
-
-**System Detection & Setup:**
-- Automatically detects OS distribution and version
-- Identifies available package manager (pkg/IPS on Solaris, rpm on AIX, swinstall on HP-UX)
-- Checks for required utilities (mpstat, iostat, vmstat, netstat, bc)
-- **Automatically installs missing packages** on supported distros
-- Provides manual installation instructions for AIX/HP-UX
-- Continues with graceful degradation if tools unavailable
-
-**CPU Forensics:**
-- Load average analysis (per-core calculation)
-- CPU utilization sampling (10-second average)
-- Context switch rate monitoring
-- CPU steal time detection (hypervisor contention)
-- Top CPU-consuming processes
-- **SAR CPU analysis:** Real-time sampling (sar -u, sar -q)
-- **Historical CPU data:** Automatic detection of /var/adm/sa data
-
-**Memory Forensics:**
-- Memory usage and availability analysis
-- Swap usage monitoring
-- Page fault rate detection
-- Memory pressure indicators (PSI)
-- Slab memory usage analysis
-- OOM (Out of Memory) killer detection
-- Memory leak candidate identification
-- Huge pages status
-- Top memory-consuming processes
-- **SAR memory analysis:** Real-time sampling (sar -r, sar -p/sar -g)
-- **Historical memory data:** Automatic detection of /var/adm/sa data
-
-**Storage Profiling:**
-- Disk labeling/partition scheme detection:
-  - **AIX**: LVM-only architecture (no MBR/GPT concept)
-  - **HP-UX**: LVM, EFI (Itanium) vs PDC (PA-RISC) boot detection
-  - **Solaris/Illumos**: SMI (VTOC) vs EFI (GPT) with >2TB warnings
-- **Partition alignment analysis:**
-  - **AIX**: LVM Physical Partition (PP) size analysis (optimal >= 64MB for SAN)
-  - **HP-UX**: LVM Physical Extent (PE) size and first PE offset alignment
-  - **Solaris**: VTOC slice alignment, EFI partition alignment, ZFS ashift analysis
-- Boot configuration (UEFI vs BIOS/OBP)
-- Filesystem type analysis (ZFS, UFS, JFS, VxFS)
-- Storage topology (LVM, VxVM, SVM, ZFS)
-
-**Disk I/O Forensics:**
-- Filesystem usage monitoring
-- I/O wait time analysis
-- Read/write performance testing (dd-based)
-- Dropped I/O detection
-- Per-device statistics
-- **SAR disk analysis:** Real-time sampling (sar -d, sar -b)
-- **Historical disk data:** Automatic detection of /var/adm/sa data
-
-**Database Forensics:**
-- Automatic detection of running databases
-- Supported: MySQL/MariaDB, PostgreSQL, MongoDB, Cassandra, Redis, Oracle, SQL Server, Elasticsearch
-- **DBA-level query analysis:**
-  - Top 5 queries by CPU time and resource consumption (all platforms)
-  - Long-running queries/operations (>30 seconds)
-  - Blocking and wait state analysis (SQL Server, Oracle)
-  - Connection pool exhaustion and rejection tracking (all platforms)
-  - Thread pool monitoring (Elasticsearch)
-  - Slow operation profiling (MongoDB, Redis)
-- Connection count monitoring
-- Process resource usage (CPU, memory)
-- Connection churn analysis (TIME_WAIT)
-
-**Network Forensics:**
-- Interface status and statistics
-- TCP connection state analysis
-- Retransmission detection
-- RX/TX error monitoring
-- Dropped packet analysis
-- Socket memory usage
-- Network throughput analysis
-- Buffer/queue settings
-- **SAR network analysis:** Real-time sampling (sar -n DEV, sar -n EDEV, sar -n TCP)
-- **Historical network data:** Automatic detection of /var/adm/sa data
-
-**Bottleneck Detection:**
-- Automatically identifies performance issues
-- Categorizes by severity (Critical, High, Medium, Low)
-- Provides threshold comparisons
-- **Creates AWS Support case** with all diagnostic data
-
-**Storage Issues Detected:**
-- **Misaligned partitions/extents** (LVM PP/PE size, slice alignment, ZFS ashift)
-- **SMI (VTOC) label on >2TB disk** (Solaris - only 2TB usable)
-- ZFS pool degraded or faulted
-- SMART drive failures (where smartctl available)
-- AIX Volume Group quorum issues
-- Suboptimal LVM extent sizes for SAN environments
-
-</details>
-
-<details>
-<summary><strong>Usage</strong></summary>
-
-```bash
-# Quick diagnostics (3 minutes)
-./invoke-unix-forensics.sh -m quick
-
-# Standard diagnostics (5-10 minutes) - recommended
-./invoke-unix-forensics.sh -m standard
-
-# Deep diagnostics with I/O testing (15-20 minutes)
-./invoke-unix-forensics.sh -m deep
-
-# Auto-create support case if issues found (3 minutes)
-./invoke-unix-forensics.sh -m standard -s -v high
-
-# Disk-only diagnostics
-./invoke-unix-forensics.sh -m disk
-
-# CPU-only diagnostics
-./invoke-unix-forensics.sh -m cpu
-
-# Memory-only diagnostics
-./invoke-unix-forensics.sh -m memory
-
-# Custom output directory
-./invoke-unix-forensics.sh -m standard -o /var/log
-```
-
-**Options:**
-- `-m, --mode` - Diagnostic mode: quick, standard, deep, disk, cpu, memory
-- `-s, --support` - Create AWS Support case if issues found
-- `-v, --severity` - Support case severity: low, normal, high, urgent, critical
-- `-o, --output` - Output directory (default: current directory)
-- `-h, --help` - Show help message
-
-</details>
-
-<details>
-<summary><strong>Output Example</strong></summary>
-
-```
-BOTTLENECKS DETECTED: 3 performance issue(s) found
-
-  CRITICAL ISSUES (1):
-    • Memory: Low available memory
-
-  HIGH PRIORITY (2):
-    • Disk: High I/O wait time
-    • CPU: High load average
-
-Detailed report saved to: unix-forensics-20260114-070000.txt
-AWS Support case created: case-123456789
-```
-
-</details>
 
 ---
 
@@ -795,13 +631,13 @@ AWS Support case created: case-123456789
 <details>
 <summary><strong>Version History</strong></summary>
 
-- **v1.1** (February 2026)
-  - **Solaris (all versions):** `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
-  - **Solaris 9 compatibility:** Skip `pipefail` on SunOS 5.9; portable shell (case instead of `=~`, here-doc instead of `<<<`, scalar lists instead of array `+=`, index loops for `${!array[@]}`); ZFS/zpool reported as N/A on 9; guard `date +%s` so duration never triggers arithmetic error. README “Solaris troubleshooting” section describes what was done for 9.
-  - **Solaris 10/11:** Validation on x86 with patched systems; README “Getting Solaris 10 and 11 running” covers patch, bash from pkg, optional sar, ZFS usage, and failure checks.
-  - **README:** Solaris patch requirements; 9 vs 10/11 differences table; full “Solaris troubleshooting and how 9, 10, and 11 were validated” (all-Solaris behavior, what was done for 9, how 10/11 were got going); Unix-focused troubleshooting and setup; testing status (x86 tested, SPARC expected); contact email.
+- v1.1 (February 2026)
+  - Solaris (all versions): `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
+  - Solaris 9 compatibility: Skip `pipefail` on SunOS 5.9; portable shell (case instead of `=~`, here-doc instead of `<<<`, scalar lists instead of array `+=`, index loops for `${!array[@]}`); ZFS/zpool reported as N/A on 9; guard `date +%s` so duration never triggers arithmetic error. README “Solaris troubleshooting” section describes what was done for 9.
+  - Solaris 10/11: Validation on x86 with patched systems; README “Getting Solaris 10 and 11 running” covers patch, bash from pkg, optional sar, ZFS usage, and failure checks.
+  - README: Solaris patch requirements; 9 vs 10/11 differences table; full “Solaris troubleshooting and how 9, 10, and 11 were validated” (all-Solaris behavior, what was done for 9, how 10/11 were got going); Unix-focused troubleshooting and setup; testing status (x86 tested, SPARC expected); contact email.
 
-- **v1.0** (January 2026)
+- v1.0 (January 2026)
   - Initial release: AIX, HP-UX, Solaris, Illumos.
   - Disk labeling and boot configuration (SMI/VTOC, EFI, LVM).
   - Partition alignment analysis (AIX PP, HP-UX PE, Solaris VTOC/EFI/ZFS ashift).
@@ -812,4 +648,4 @@ AWS Support case created: case-123456789
 
 ---
 
-**Note:** This tool is provided as-is for diagnostic purposes. If you successfully use this on AIX, HP-UX, or Solaris, please share feedback!
+Note: This tool is provided as-is for diagnostic purposes. If you successfully use this on AIX, HP-UX, or Solaris, please share feedback!
