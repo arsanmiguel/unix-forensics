@@ -40,7 +40,7 @@ fi
 set -eu
 
 # Detect OS once at startup. Trim whitespace/CRLF.
-UNAME_S=$(uname -s 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
+UNAME_S=$(uname -s 2>/dev/null | tr -d ' \t\r\n' || echo "")
 UNAME_R=$(uname -r 2>/dev/null | tr -d '\r\n' || echo "")
 
 # Solaris: no /proc/cpuinfo, no free, no grep -E. Set once so every code path can guard.
@@ -89,7 +89,7 @@ NC='\033[0m' # No Color
 
 detect_os() {
     local uname_s
-    uname_s=$(uname -s 2>/dev/null | tr -d '\r\n' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || echo "")
+    uname_s=$(uname -s 2>/dev/null | tr -d ' \t\r\n' || echo "")
     local uname_v=$(uname -v 2>/dev/null || echo "")
     
     # Use UNAME_S if already set (e.g. at script start); ensures consistency with collect_system_info
@@ -101,22 +101,22 @@ detect_os() {
         OS_VERSION_MAJOR=$(echo "$OS_VERSION" | cut -d. -f2)
         local release_info
         release_info=$(head -1 /etc/release)
-        if egrep -qi "openindiana" /etc/release 2>/dev/null; then
+        if egrep -i "openindiana" /etc/release >/dev/null 2>&1; then
             DISTRO="openindiana"
             OS_NAME="OpenIndiana $(sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
-        elif egrep -qi "omnios" /etc/release 2>/dev/null; then
+        elif egrep -i "omnios" /etc/release >/dev/null 2>&1; then
             DISTRO="omnios"
             OS_NAME="OmniOS $(sed -n 's/.*\(r[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
-        elif egrep -qi "smartos" /etc/release 2>/dev/null; then
+        elif egrep -i "smartos" /etc/release >/dev/null 2>&1; then
             DISTRO="smartos"
             OS_NAME="SmartOS"
-        elif egrep -qi "illumos" /etc/release 2>/dev/null; then
+        elif egrep -i "illumos" /etc/release >/dev/null 2>&1; then
             DISTRO="illumos"
             OS_NAME="Illumos"
-        elif egrep -qi "Oracle Solaris 11" /etc/release 2>/dev/null; then
+        elif egrep -i "Oracle Solaris 11" /etc/release >/dev/null 2>&1; then
             DISTRO="solaris11"
             OS_NAME="Oracle Solaris 11"
-        elif egrep -qi "Oracle Solaris 10" /etc/release 2>/dev/null; then
+        elif egrep -i "Oracle Solaris 10" /etc/release >/dev/null 2>&1; then
             DISTRO="solaris10"
             OS_NAME="Oracle Solaris 10"
         else
@@ -165,22 +165,22 @@ detect_os() {
         if [[ -f /etc/release ]]; then
             local release_info=$(head -1 /etc/release)
             
-            if egrep -qi "openindiana" /etc/release 2>/dev/null; then
+            if egrep -i "openindiana" /etc/release >/dev/null 2>&1; then
                 DISTRO="openindiana"
                 OS_NAME="OpenIndiana $(sed -n 's/.*\([0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
-            elif egrep -qi "omnios" /etc/release 2>/dev/null; then
+            elif egrep -i "omnios" /etc/release >/dev/null 2>&1; then
                 DISTRO="omnios"
                 OS_NAME="OmniOS $(sed -n 's/.*\(r[0-9][0-9]*\).*/\1/p' /etc/release | head -1)"
-            elif egrep -qi "smartos" /etc/release 2>/dev/null; then
+            elif egrep -i "smartos" /etc/release >/dev/null 2>&1; then
                 DISTRO="smartos"
                 OS_NAME="SmartOS"
-            elif egrep -qi "illumos" /etc/release 2>/dev/null; then
+            elif egrep -i "illumos" /etc/release >/dev/null 2>&1; then
                 DISTRO="illumos"
                 OS_NAME="Illumos"
-            elif egrep -qi "Oracle Solaris 11" /etc/release 2>/dev/null; then
+            elif egrep -i "Oracle Solaris 11" /etc/release >/dev/null 2>&1; then
                 DISTRO="solaris11"
                 OS_NAME="Oracle Solaris 11"
-            elif egrep -qi "Oracle Solaris 10" /etc/release 2>/dev/null; then
+            elif egrep -i "Oracle Solaris 10" /etc/release >/dev/null 2>&1; then
                 DISTRO="solaris10"
                 OS_NAME="Oracle Solaris 10"
             else
@@ -1242,7 +1242,7 @@ analyze_disk_aix() {
         if [[ -n "$usage" ]] && (( usage > 90 )); then
             log_bottleneck "Disk" "Filesystem nearly full: ${mount}" "${usage}%" "90%" "High"
         fi
-    done < <(df -g | tail -n +2)
+    done < <(df -g | awk 'NR>1')
     
     # I/O statistics
     if command -v iostat >/dev/null 2>&1; then
@@ -1310,7 +1310,7 @@ analyze_disk_hpux() {
         if [[ -n "$usage" ]] && (( usage > 90 )); then
             log_bottleneck "Disk" "Filesystem nearly full: ${mount}" "${usage}%" "90%" "High"
         fi
-    done < <(df -k | tail -n +2)
+    done < <(df -k | awk 'NR>1')
     
     # I/O statistics
     if command -v iostat >/dev/null 2>&1; then
@@ -1378,7 +1378,7 @@ analyze_disk_solaris() {
         if [[ -n "$usage" ]] && (( usage > 90 )); then
             log_bottleneck "Disk" "Filesystem nearly full: ${mount}" "${usage}%" "90%" "High"
         fi
-    done < <(df -h | tail -n +2)
+    done < <(df -h | awk 'NR>1')
     
     # I/O statistics
     if command -v iostat >/dev/null 2>&1; then
@@ -1390,20 +1390,26 @@ analyze_disk_solaris() {
     # ZFS pools if available
     if command -v zpool >/dev/null 2>&1; then
         echo "=== ZFS Pool Status ===" | tee -a "$OUTPUT_FILE"
-        zpool status | tee -a "$OUTPUT_FILE"
+        zpool status 2>/dev/null | tee -a "$OUTPUT_FILE" || true
         echo "" | tee -a "$OUTPUT_FILE"
         
         echo "=== ZFS Pool I/O Stats ===" | tee -a "$OUTPUT_FILE"
-        zpool iostat -v | tee -a "$OUTPUT_FILE"
+        zpool iostat -v 2>/dev/null | tee -a "$OUTPUT_FILE" || true
         echo "" | tee -a "$OUTPUT_FILE"
     fi
     
-    # Disk information (use iostat -En; interactive format hangs without a tty)
-    if command -v iostat >/dev/null 2>&1; then
-        echo "=== Disk Devices ===" | tee -a "$OUTPUT_FILE"
-        iostat -En 2>/dev/null | tee -a "$OUTPUT_FILE"
+    # Disk information (format is interactive and hangs without a tty on all Solaris/illumos)
+    echo "=== Disk Devices ===" | tee -a "$OUTPUT_FILE"
+    if [[ "$SOLARIS_9" -eq 1 ]]; then
+        # Solaris 9: no iostat -En; enumerate /dev/rdsk and show iostat -e summary
+        ls /dev/rdsk/c*s2 2>/dev/null | sed 's|.*/||;s/s2$//' | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
+        iostat -e 2>/dev/null | tee -a "$OUTPUT_FILE"
+    else
+        # Solaris 10+/illumos: iostat -En gives full device details
+        iostat -En 2>/dev/null | tee -a "$OUTPUT_FILE"
     fi
+    echo "" | tee -a "$OUTPUT_FILE"
     
     # ==========================================================================
     # SAR DISK I/O ANALYSIS (Solaris/Illumos)
@@ -1599,7 +1605,7 @@ analyze_storage_profile_aix() {
         echo "  Boot Disk: $boot_disk" | tee -a "$OUTPUT_FILE"
         
         # Check if booted from SAN
-        if bootinfo -q 2>/dev/null | grep -qi "san\|fc"; then
+        if bootinfo -q 2>/dev/null | grep -i "san\|fc" >/dev/null 2>&1; then
             echo "  Boot Source: SAN (Fibre Channel)" | tee -a "$OUTPUT_FILE"
         else
             echo "  Boot Source: Local Disk" | tee -a "$OUTPUT_FILE"
@@ -1688,9 +1694,9 @@ analyze_storage_profile_aix() {
             # Determine disk type
             local disk_type="Unknown"
             local pvid=$(lspv "$pv" 2>/dev/null | grep "PV IDENTIFIER" | awk '{print $3}')
-            if lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -qi "san\|fc\|iscsi"; then
+            if lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -i "san\|fc\|iscsi" >/dev/null 2>&1; then
                 disk_type="SAN"
-            elif lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -qi "ssd\|flash"; then
+            elif lsdev -Cc disk 2>/dev/null | grep "$pv" | grep -i "ssd\|flash" >/dev/null 2>&1; then
                 disk_type="SSD"
             else
                 disk_type="HDD"
@@ -2183,14 +2189,19 @@ analyze_storage_profile_solaris() {
     local smi_count=0
     local efi_count=0
     
-    # Get list of disks
-    if command -v format >/dev/null 2>&1; then
-        # Parse format output for disk list
+    # Get list of disks (format is interactive; enumerate /dev/rdsk or use iostat -En)
+    if [[ -d /dev/rdsk ]]; then
         local disk_list=""
-        for _d in $(iostat -En 2>/dev/null | awk '/^c[0-9]/{print $1}'); do
-            iostat -En "$_d" 2>/dev/null | grep -qi "CD-ROM" && continue
-            disk_list="$disk_list $_d"
-        done
+        if [[ "$SOLARIS_9" -eq 1 ]]; then
+            # Solaris 9: enumerate raw disk slice 2 entries
+            disk_list=$(ls /dev/rdsk/c*s2 2>/dev/null | sed 's|.*/||;s/s2$//')
+        else
+            # Solaris 10+/illumos: use iostat -En, skip CD-ROM devices
+            for _d in $(iostat -En 2>/dev/null | awk '/^c[0-9]/{print $1}'); do
+                iostat -En "$_d" 2>/dev/null | grep -i "CD-ROM" >/dev/null 2>&1 && continue
+                disk_list="$disk_list $_d"
+            done
+        fi
         
         for disk in $disk_list; do
             local disk_dev="/dev/rdsk/${disk}s2"
@@ -2201,10 +2212,10 @@ analyze_storage_profile_solaris() {
             local label_type="Unknown"
             local vtoc_output=$(prtvtoc "$disk_dev" 2>&1)
             
-            if echo "$vtoc_output" | grep -q "EFI"; then
+            if echo "$vtoc_output" | grep "EFI" >/dev/null 2>&1; then
                 label_type="EFI (GPT)"
                 efi_count=$((efi_count + 1))
-            elif echo "$vtoc_output" | grep -q "Dimensions\|sectors/track"; then
+            elif echo "$vtoc_output" | grep "Dimensions\|sectors/track" >/dev/null 2>&1; then
                 label_type="SMI (VTOC)"
                 smi_count=$((smi_count + 1))
                 
@@ -2297,14 +2308,16 @@ analyze_storage_profile_solaris() {
             [[ -c "$disk_dev" ]] || continue
 
             local disk_base=$(basename "$disk_dev" | sed 's/s2$//')
-            # Skip CD-ROM / non-disk devices
-            iostat -En "$disk_base" 2>/dev/null | grep -qi "CD-ROM" && continue
+            # Skip CD-ROM / non-disk devices (iostat -En only on Solaris 10+/illumos)
+            if [[ "$SOLARIS_9" -eq 0 ]]; then
+                iostat -En "$disk_base" 2>/dev/null | grep -i "CD-ROM" >/dev/null 2>&1 && continue
+            fi
             
             # Get VTOC info
             local vtoc_output=$(prtvtoc "$disk_dev" 2>&1)
             
             # Skip if not a VTOC disk
-            if echo "$vtoc_output" | grep -q "EFI"; then
+            if echo "$vtoc_output" | grep "EFI" >/dev/null 2>&1; then
                 # EFI (GPT) disk - check partition start sectors
                 echo "" | tee -a "$OUTPUT_FILE"
                 echo "  $disk_base (EFI/GPT):" | tee -a "$OUTPUT_FILE"
@@ -2459,9 +2472,11 @@ analyze_storage_profile_solaris() {
     echo "--- STORAGE TOPOLOGY ---" | tee -a "$OUTPUT_FILE"
     
     # Disk devices
-    if command -v format >/dev/null 2>&1; then
-        echo "" | tee -a "$OUTPUT_FILE"
-        echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
+    echo "" | tee -a "$OUTPUT_FILE"
+    echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
+    if [[ "$SOLARIS_9" -eq 1 ]]; then
+        ls /dev/rdsk/c*s2 2>/dev/null | sed 's|.*/||;s/s2$//' | tee -a "$OUTPUT_FILE"
+    elif command -v iostat >/dev/null 2>&1; then
         iostat -En 2>/dev/null | egrep "^c[0-9]|Size:|Vendor:" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2469,11 +2484,11 @@ analyze_storage_profile_solaris() {
     if command -v zpool >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool Status:" | tee -a "$OUTPUT_FILE"
-        zpool status | tee -a "$OUTPUT_FILE"
+        zpool status 2>/dev/null | tee -a "$OUTPUT_FILE" || true
         
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool List:" | tee -a "$OUTPUT_FILE"
-        zpool list | tee -a "$OUTPUT_FILE"
+        zpool list 2>/dev/null | tee -a "$OUTPUT_FILE" || true
         
         # Check for degraded pools
         local degraded=$(zpool status 2>/dev/null | grep -c "DEGRADED\|FAULTED" || true)
@@ -2503,8 +2518,10 @@ analyze_storage_profile_solaris() {
     echo "" | tee -a "$OUTPUT_FILE"
     echo "Disk Hardware Info:" | tee -a "$OUTPUT_FILE"
     
-    # Use iostat -En for extended disk info
-    if command -v iostat >/dev/null 2>&1; then
+    if [[ "$SOLARIS_9" -eq 1 ]]; then
+        ls /dev/rdsk/c*s2 2>/dev/null | sed 's|.*/||;s/s2$//' | tee -a "$OUTPUT_FILE"
+        iostat -e 2>/dev/null | tee -a "$OUTPUT_FILE"
+    elif command -v iostat >/dev/null 2>&1; then
         iostat -En 2>/dev/null | egrep "^c|Size|Vendor|Product|Serial" | head -40 | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2558,12 +2575,12 @@ analyze_storage_profile_solaris() {
     if command -v zpool >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool Health:" | tee -a "$OUTPUT_FILE"
-        zpool status -v 2>/dev/null | egrep "pool:|state:|status:|action:|scan:|errors:" | tee -a "$OUTPUT_FILE"
+        zpool status -v 2>/dev/null | egrep "pool:|state:|status:|action:|scan:|errors:" | tee -a "$OUTPUT_FILE" || true
         
         # Scrub status
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Scrub Status:" | tee -a "$OUTPUT_FILE"
-        zpool status 2>/dev/null | grep -A 2 "scan:" | tee -a "$OUTPUT_FILE"
+        zpool status 2>/dev/null | grep -A 2 "scan:" | tee -a "$OUTPUT_FILE" || true
     fi
     
     # ==========================================================================
@@ -2580,7 +2597,7 @@ analyze_storage_profile_solaris() {
     if command -v zpool >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool Capacity:" | tee -a "$OUTPUT_FILE"
-        zpool list -o name,size,alloc,free,cap,health | tee -a "$OUTPUT_FILE"
+        zpool list -o name,size,alloc,free,cap,health 2>/dev/null | tee -a "$OUTPUT_FILE" || true
         
         # Check for pools over 80% capacity
         while read -r line; do
@@ -2592,10 +2609,10 @@ analyze_storage_profile_solaris() {
         done < <(zpool list -o name,cap 2>/dev/null)
     fi
     
-    # Large directories
+    # Large directories (skip /dev /devices /proc which are pseudo-fs on Solaris)
     echo "" | tee -a "$OUTPUT_FILE"
     echo "Top 10 Directories by Size (/):" | tee -a "$OUTPUT_FILE"
-    du -sk /* 2>/dev/null | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
+    du -sk /bin /boot /etc /export /home /kernel /lib /opt /sbin /tmp /usr /var 2>/dev/null | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
     
     # ==========================================================================
     # ZFS PERFORMANCE - Solaris
@@ -2606,7 +2623,7 @@ analyze_storage_profile_solaris() {
     if command -v zpool >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "ZFS Pool I/O Statistics:" | tee -a "$OUTPUT_FILE"
-        zpool iostat -v 1 3 2>/dev/null | tee -a "$OUTPUT_FILE"
+        zpool iostat -v 1 3 2>/dev/null | tee -a "$OUTPUT_FILE" || true
     fi
     
     # ARC (Adaptive Replacement Cache) stats

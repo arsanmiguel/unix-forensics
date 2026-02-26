@@ -108,10 +108,15 @@ The script detects Solaris by OS/release and adjusts automatically. You don't ha
 
 | Item | Solaris 9 (SunOS 5.9) | Solaris 10 / 11, Illumos |
 |------|------------------------|---------------------------|
-| ZFS | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). |
+| ZFS | Not available (introduced in 10). Script reports zpool/zfs as N/A and does not require or recommend installing them (they are not in OpenCSW for 9). | ZFS is checked and used when present (pool status, ashift, capacity, etc.). All `zpool` output commands are guarded with `|| true` so the script survives `set -eu` + `pipefail` when no pools are configured. |
 | Bash / shell | Very old bash; no `pipefail`, no `=~`, no `<<<`, no `${!array[@]}`, no array `+=`. Script uses portable constructs (e.g. `case`, here-docs, scalar lists, index loops) and skips `set -o pipefail` on 5.9. | Modern enough; script uses full strictness and normal Bash-isms. |
 | date | `date +%s` (epoch seconds) is not supported; script falls back so duration may show 0 seconds. | Epoch time works; analysis duration is reported normally. |
-| Storage tools | Only iostat and format are required. zpool/zfs are listed as "N/A (ZFS not available on Solaris 9)". | iostat, format, zpool, and zfs are checked; missing ones are reported and install hints given where applicable. |
+| grep | Solaris 9 `/usr/bin/grep` does not support `-q` (quiet) or `-i` with `-q`. All quiet-match patterns use `>/dev/null 2>&1` instead. `egrep` is used everywhere (no `grep -E`). | `grep -q` works but the script uses `>/dev/null 2>&1` universally for portability. |
+| tail | `tail -n +2` is not supported on Solaris 9. Script uses `awk 'NR>1'` everywhere. | `tail -n +2` works but the script uses `awk 'NR>1'` universally for portability. |
+| sed | Solaris 9 `sed` does not support POSIX `[[:space:]]` character classes (they silently consume input). OS detection uses `tr -d ' \t\r\n'` instead. | `[[:space:]]` works in `sed`, but `tr` is used for the critical `UNAME_S` detection to stay portable. |
+| Disk enumeration | `iostat -En` does not exist; `format` hangs without a controlling tty (same as all Solaris). Script enumerates `/dev/rdsk/c*s2` and uses `iostat -e` for disk summaries. | `iostat -En` provides full device details. `format` is never called (hangs without a tty in background/SSH). CD-ROM devices are filtered via `iostat -En` grep. |
+| du (directory sizes) | `du -sk /*` hangs scanning `/dev` and `/devices` (massive pseudo-fs trees). Script explicitly lists real directories (`/bin /etc /usr /var` etc.), skipping `/dev`, `/devices`, `/proc`. | Same explicit directory list used for consistency and safety. |
+| Storage tools | Only `iostat` (with `-e` flag) is used for disk info. `zpool`/`zfs` are listed as "N/A (ZFS not available on Solaris 9)". | `iostat -En`, `zpool`, and `zfs` are checked; missing ones are reported and install hints given where applicable. |
 | Forensics summary | Same as 10/11: bottleneck list, duration, and summary at the end. | Same. |
 
 Solaris 9 is supported in the sense that the script runs and produces a useful report without assuming ZFS or a modern shell. It does not mean running on an unpatched 9 box is a good idea; see [Solaris: CRITICAL - Patch Before You Run](#solaris-critical) above.
@@ -120,14 +125,23 @@ What the script does on all Solaris (9, 10, 11):
 The script sets `IS_SOLARIS` from `/etc/release` and `uname` (and does not rely on `/proc` or Linux-only tools). It uses `egrep` everywhere instead of `grep -E` (Solaris `/usr/bin/grep` doesn't support `-E`). It never runs `free` or reads `/proc/cpuinfo` on Solaris; it uses `swap -s`, `vmstat`, `prstat`, and similar native commands. So 10 and 11 are treated the same as 9 for detection and command choice; the only differences are ZFS availability and shell age (see the table above).
 
 What was done for Solaris 9:  
-Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. To get the script running on 9 we:
+Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, `=~`, `<<<`, `${!array[@]}`, or array `+=`. Its core utilities (`grep`, `sed`, `tail`) also lack features found on Solaris 10+ and illumos. To get the script running on 9 we:
 
 - Skip `set -o pipefail` on 5.9 (detect via `uname -r`); use `set -o pipefail 2>/dev/null || true` elsewhere so unsupported shells don't exit.
 - Avoid Bash-isms: use `case` for regex-style checks instead of `=~`; use here-docs instead of `<<<`; use scalar variables (e.g. `to_install_list`, `missing_tools_list`) and index loops instead of array `+=` and `${!array[@]}`; declare variables at function top where needed to avoid unbound variable under `set -u`.
+- `grep -q` / `egrep -qi`: Not supported on Solaris 9. All quiet-match patterns replaced with `>/dev/null 2>&1` (works everywhere).
+- `tail -n +2`: Not supported on Solaris 9. Replaced with `awk 'NR>1'` universally.
+- `sed` with `[[:space:]]`: Silently breaks on Solaris 9 (consumes the entire input). The critical `UNAME_S` detection now uses `tr -d ' \t\r\n'` instead, which fixed `SOLARIS_9` always being 0 on actual Solaris 9.
+- `iostat -En`: Does not exist on Solaris 9. Disk enumeration uses `ls /dev/rdsk/c*s2` with `sed` parsing; disk summaries use `iostat -e`. On Solaris 10+/illumos, `iostat -En` is used instead.
+- `format`: Hangs without a controlling tty on ALL Solaris/illumos (not just illumos as originally thought). Removed all `echo | format` calls on every platform; replaced with `iostat -En` (10+/illumos) or `/dev/rdsk` enumeration (9).
+- `du -sk /*`: Hangs on Solaris scanning `/dev` and `/devices` (massive device pseudo-filesystems). Replaced with an explicit directory list skipping pseudo-fs mounts.
 - ZFS: Don't require or recommend zpool/zfs on 9 (they're not in OpenCSW); report them as "N/A (ZFS not available on Solaris 9)" and guard any `zfs list` usage so we never call it when `zfs` isn't present.
 - `date +%s`: Not supported on 9; script validates the output and uses 0 for start/end time when invalid, so `duration=$((end_time - start_time))` never sees a literal `%s` and doesn't trigger an arithmetic error.
 
-With these changes the script runs end-to-end on Solaris 9 and produces a full forensics summary.
+What was done for Solaris 10 (also benefits 11 and illumos):
+- `zpool` commands with `set -eu` + `pipefail`: Commands like `zpool iostat -v`, `zpool status`, and `zpool list` exit non-zero when no pools are configured. With `set -e` enabled, this killed the script silently. All `zpool` output commands now have `|| true` guards.
+
+With these changes the script runs end-to-end on Solaris 9, 10, 11, and OpenIndiana and produces a full forensics summary on all four.
 
 Getting Solaris 10 and 11 running:  
 Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
@@ -630,6 +644,14 @@ General Guidelines:
 <a id="version-history"></a>
 <details>
 <summary><strong>Version History</strong></summary>
+
+- v1.2 (February 2026)
+  - OS-aware portability: Script now detects Solaris 9 vs 10+/illumos at runtime and branches disk enumeration, grep flags, tail syntax, and sed usage per platform.
+  - Solaris 9 fixes: `grep -q`/`egrep -qi` replaced with `>/dev/null 2>&1`; `tail -n +2` replaced with `awk 'NR>1'`; `sed` `[[:space:]]` replaced with `tr` for OS detection (was silently breaking `SOLARIS_9` flag); disk enumeration uses `/dev/rdsk` + `iostat -e` instead of `iostat -En`.
+  - All Solaris: Removed all `echo | format` calls (hangs without a tty on every Solaris/illumos variant, not just illumos); `du -sk /*` replaced with explicit directory list to avoid hanging on `/dev`/`/devices` pseudo-fs.
+  - Solaris 10+: `zpool` output commands guarded with `|| true` so `set -eu` + `pipefail` doesn't kill the script when no pools are configured.
+  - Validated end-to-end (deep mode) on Solaris 9, 10, 11 (x86) and OpenIndiana (illumos). All four produce a complete forensics summary.
+  - README: Updated compatibility table with grep, tail, sed, disk enumeration, du differences; expanded "What was done" sections.
 
 - v1.1 (February 2026)
   - Solaris (all versions): `IS_SOLARIS` and file-based detection; `egrep` everywhere (no `grep -E`); no `free`/`/proc` on Solaris; use native commands (swap -s, vmstat, prstat, etc.). README documents how 9, 10, and 11 were validated and how to get each running.
