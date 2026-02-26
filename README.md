@@ -151,7 +151,19 @@ Validation on 10 and 11 (x86) was done on patched systems with a current-ish use
 3. Optional but useful: Install `system/sar` (Solaris 11: `pkg install system/sar`) so the script can collect SAR-based CPU, memory, and disk analysis. Without it, the script still runs and uses vmstat, iostat, swap, prstat, etc.
 4. ZFS: On 10/11, if ZFS is present the script will report pool status, ashift, and capacity. No extra steps needed beyond a normal Solaris install.
 
-If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see Troubleshooting → Missing Utilities), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see Troubleshooting --> Missing Utilities), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
+
+What was done for illumos (OpenIndiana, OmniOS, SmartOS):  
+illumos derivatives share the Solaris 10+ codebase but have their own quirks that were discovered during validation on OpenIndiana. The fixes applied benefit all illumos distributions:
+
+- `echo | format` hangs without a tty: Same as all Solaris. The `format` command is interactive and blocks when there's no controlling terminal (common in SSH remote commands and background processes). Replaced with `iostat -En` for disk enumeration on illumos/Solaris 10+.
+- `sort -rh` (human-readable sort): illumos `sort` does not support the `-h` flag. Replaced `du -sh | sort -rh` with `du -sk | sort -rn`.
+- `netstat` flags: Linux-style `netstat -ant` and `-tuln` are not supported. Replaced with `netstat -an -f inet -P tcp` and `netstat -an -f inet`. Port matching also changed from colon-separated (`:22`) to dot-separated (`[.]22[[:space:]]`) to match illumos output format.
+- `grep -c ... || echo "0"` pattern: When `grep -c` finds 0 matches it outputs "0" but exits with code 1, causing `|| echo "0"` to fire and produce "0\n0", breaking bash arithmetic. Replaced all instances with `|| true`.
+- `((count++))` arithmetic: In bash, `((0))` returns exit code 1, so `((var++))` when var=0 can cause script termination under `set -e`. Replaced with `var=$((var + 1))`.
+- CD-ROM device filtering: Disk scanning loops were including CD-ROMs, leading to `prtvtoc` errors. Added `iostat -En` checks to skip CD-ROM devices on illumos/Solaris 10+.
+
+These fixes are transparent -- the script detects the OS at startup and uses the appropriate code path. No user configuration is needed.
 
 </details>
 
