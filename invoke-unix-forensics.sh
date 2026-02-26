@@ -379,7 +379,7 @@ diagnose_package_install_failure() {
             echo "Repository configuration:" | tee -a "$OUTPUT_FILE"
             if [[ -f /etc/apt/sources.list ]]; then
                 echo "  - /etc/apt/sources.list exists" | tee -a "$OUTPUT_FILE"
-                local repo_count=$(grep -v "^#" /etc/apt/sources.list | grep -c "^deb" || echo "0")
+                local repo_count=$(grep -v "^#" /etc/apt/sources.list | grep -c "^deb" || true)
                 echo "  - Active repositories: ${repo_count}" | tee -a "$OUTPUT_FILE"
             fi
             echo "" | tee -a "$OUTPUT_FILE"
@@ -388,7 +388,7 @@ diagnose_package_install_failure() {
             ;;
         yum|dnf)
             echo "Repository configuration:" | tee -a "$OUTPUT_FILE"
-            local repo_count=$($PACKAGE_MANAGER repolist 2>/dev/null | grep -c "^[^!]" || echo "0")
+            local repo_count=$($PACKAGE_MANAGER repolist 2>/dev/null | grep -c "^[^!]" || true)
             echo "  - Active repositories: ${repo_count}" | tee -a "$OUTPUT_FILE"
             echo "" | tee -a "$OUTPUT_FILE"
             echo "Try:" | tee -a "$OUTPUT_FILE"
@@ -1398,10 +1398,10 @@ analyze_disk_solaris() {
         echo "" | tee -a "$OUTPUT_FILE"
     fi
     
-    # Disk information
-    if command -v format >/dev/null 2>&1; then
+    # Disk information (use iostat -En; interactive format hangs without a tty)
+    if command -v iostat >/dev/null 2>&1; then
         echo "=== Disk Devices ===" | tee -a "$OUTPUT_FILE"
-        echo | format 2>/dev/null | grep "^[0-9]" | tee -a "$OUTPUT_FILE"
+        iostat -En 2>/dev/null | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -1659,13 +1659,13 @@ analyze_storage_profile_aix() {
             
             if (( pp_size_mb >= 64 )) && (( is_power_of_2 == 1 )); then
                 alignment_status="OPTIMAL (${pp_size_mb}MB - power of 2, >= 64MB)"
-                ((aligned_count++))
+                aligned_count=$((aligned_count + 1))
             elif (( pp_size_mb >= 16 )); then
                 alignment_status="ACCEPTABLE (${pp_size_mb}MB)"
-                ((aligned_count++))
+                aligned_count=$((aligned_count + 1))
             else
                 alignment_status="SUBOPTIMAL (${pp_size_mb}MB - recommend >= 64MB for SAN)"
-                ((misaligned_count++))
+                misaligned_count=$((misaligned_count + 1))
                 log_bottleneck "Storage" "VG $vg has small PP size" "${pp_size_mb}MB" ">= 64MB" "Medium"
             fi
             
@@ -1798,10 +1798,10 @@ analyze_storage_profile_aix() {
             # SSDs typically have higher queue depths configured
             if [[ -n "$queue_depth" ]] && (( queue_depth > 32 )); then
                 disk_type="SSD (likely)"
-                ((ssd_count++))
+                ssd_count=$((ssd_count + 1))
             else
                 disk_type="HDD (likely)"
-                ((hdd_count++))
+                hdd_count=$((hdd_count + 1))
             fi
         fi
         
@@ -1824,7 +1824,7 @@ analyze_storage_profile_aix() {
         lspath | tee -a "$OUTPUT_FILE"
         
         # Check for failed paths
-        local failed_paths=$(lspath 2>/dev/null | grep -c "Failed" || echo "0")
+        local failed_paths=$(lspath 2>/dev/null | grep -c "Failed" || true)
         if (( failed_paths > 0 )); then
             log_bottleneck "Storage" "Failed multipath paths detected" "$failed_paths" "0" "Critical"
         fi
@@ -1974,13 +1974,13 @@ analyze_storage_profile_hpux() {
             
             if (( pe_size_mb >= 32 )) && (( is_power_of_2 == 1 )); then
                 alignment_status="OPTIMAL (${pe_size_mb}MB - power of 2, >= 32MB)"
-                ((aligned_count++))
+                aligned_count=$((aligned_count + 1))
             elif (( pe_size_mb >= 8 )); then
                 alignment_status="ACCEPTABLE (${pe_size_mb}MB)"
-                ((aligned_count++))
+                aligned_count=$((aligned_count + 1))
             else
                 alignment_status="SUBOPTIMAL (${pe_size_mb}MB - recommend >= 32MB for SAN)"
-                ((misaligned_count++))
+                misaligned_count=$((misaligned_count + 1))
                 log_bottleneck "Storage" "VG $vg has small PE size" "${pe_size_mb}MB" ">= 32MB" "Medium"
             fi
             
@@ -2028,7 +2028,7 @@ analyze_storage_profile_hpux() {
                 echo "  $pv: First PE at ${first_pe_kb}KB - ALIGNED (64KB boundary)" | tee -a "$OUTPUT_FILE"
             else
                 echo "  $pv: First PE at ${first_pe_kb}KB - MISALIGNED" | tee -a "$OUTPUT_FILE"
-                ((misaligned_count++))
+                misaligned_count=$((misaligned_count + 1))
                 log_bottleneck "Storage" "PV $pv has misaligned first PE" "${first_pe_kb}KB" "1MB aligned" "Medium"
             fi
         done
@@ -2186,7 +2186,11 @@ analyze_storage_profile_solaris() {
     # Get list of disks
     if command -v format >/dev/null 2>&1; then
         # Parse format output for disk list
-        local disk_list=$(echo "" | format 2>/dev/null | grep "^[[:space:]]*[0-9]" | awk '{print $2}')
+        local disk_list=""
+        for _d in $(iostat -En 2>/dev/null | awk '/^c[0-9]/{print $1}'); do
+            iostat -En "$_d" 2>/dev/null | grep -qi "CD-ROM" && continue
+            disk_list="$disk_list $_d"
+        done
         
         for disk in $disk_list; do
             local disk_dev="/dev/rdsk/${disk}s2"
@@ -2199,10 +2203,10 @@ analyze_storage_profile_solaris() {
             
             if echo "$vtoc_output" | grep -q "EFI"; then
                 label_type="EFI (GPT)"
-                ((efi_count++))
+                efi_count=$((efi_count + 1))
             elif echo "$vtoc_output" | grep -q "Dimensions\|sectors/track"; then
                 label_type="SMI (VTOC)"
-                ((smi_count++))
+                smi_count=$((smi_count + 1))
                 
                 # Check size - warn if SMI on >2TB
                 local disk_size=$(echo "$vtoc_output" | grep "accessible sectors" | awk '{print $1}')
@@ -2255,7 +2259,7 @@ analyze_storage_profile_solaris() {
     if command -v zfs >/dev/null 2>&1; then
         zfs_count=$(zfs list -H 2>/dev/null | wc -l)
     fi
-    local ufs_count=$(mount -v 2>/dev/null | grep -c "ufs" || echo "0")
+    local ufs_count=$(mount -v 2>/dev/null | grep -c "ufs" || true)
     
     if command -v zfs >/dev/null 2>&1; then
         echo "  ZFS: $zfs_count dataset(s) - Modern, recommended" | tee -a "$OUTPUT_FILE"
@@ -2291,8 +2295,10 @@ analyze_storage_profile_solaris() {
         # Get list of disks
         for disk_dev in /dev/rdsk/c*s2; do
             [[ -c "$disk_dev" ]] || continue
-            
+
             local disk_base=$(basename "$disk_dev" | sed 's/s2$//')
+            # Skip CD-ROM / non-disk devices
+            iostat -En "$disk_base" 2>/dev/null | grep -qi "CD-ROM" && continue
             
             # Get VTOC info
             local vtoc_output=$(prtvtoc "$disk_dev" 2>&1)
@@ -2324,14 +2330,14 @@ analyze_storage_profile_solaris() {
                     fi
                     
                     if [[ "$aligned_4k" == "YES" ]]; then
-                        ((aligned_count++))
+                        aligned_count=$((aligned_count + 1))
                         if [[ "$aligned_1mb" == "YES" ]]; then
                             echo "    Partition $part_num: ALIGNED (1MB) - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         else
                             echo "    Partition $part_num: ALIGNED (4K) - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         fi
                     else
-                        ((misaligned_count++))
+                        misaligned_count=$((misaligned_count + 1))
                         echo "    Partition $part_num: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         log_bottleneck "Storage" "Misaligned EFI partition on $disk_base" "Sector $first_sector" "4K aligned" "High"
                     fi
@@ -2376,13 +2382,13 @@ analyze_storage_profile_solaris() {
                     fi
                     
                     if [[ "$aligned_4k" == "YES" ]]; then
-                        ((aligned_count++))
+                        aligned_count=$((aligned_count + 1))
                         local align_detail=""
                         [[ "$aligned_1mb" == "YES" ]] && align_detail=" (1MB boundary)"
                         [[ "$cyl_aligned" == "YES" ]] && align_detail="$align_detail (cylinder aligned)"
                         echo "    Slice $slice: ALIGNED${align_detail} - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                     else
-                        ((misaligned_count++))
+                        misaligned_count=$((misaligned_count + 1))
                         echo "    Slice $slice: MISALIGNED - Start: sector $first_sector (${offset_kb}KB)" | tee -a "$OUTPUT_FILE"
                         log_bottleneck "Storage" "Misaligned VTOC slice on $disk_base" "Sector $first_sector" "4K aligned" "High"
                     fi
@@ -2406,14 +2412,14 @@ analyze_storage_profile_solaris() {
             local alignment_status=""
             if (( ashift >= 12 )); then
                 alignment_status="OPTIMAL (ashift=$ashift = ${sector_size}-byte sectors, 4K+ aligned)"
-                ((aligned_count++))
+                aligned_count=$((aligned_count + 1))
             elif (( ashift == 9 )); then
                 alignment_status="LEGACY (ashift=$ashift = 512-byte sectors)"
                 # Check if pool has SSDs - if so, this is a problem
                 local has_ssd=$(zpool status "$pool" 2>/dev/null | grep -i "ssd\|nvme")
                 if [[ -n "$has_ssd" ]]; then
                     alignment_status="SUBOPTIMAL (ashift=9 on SSD - should be 12+)"
-                    ((misaligned_count++))
+                    misaligned_count=$((misaligned_count + 1))
                     log_bottleneck "Storage" "ZFS pool $pool has suboptimal ashift for SSD" "ashift=$ashift" "ashift=12+" "High"
                 fi
             else
@@ -2456,7 +2462,7 @@ analyze_storage_profile_solaris() {
     if command -v format >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Disk Devices:" | tee -a "$OUTPUT_FILE"
-        echo "" | format 2>/dev/null | egrep "^[0-9]|c[0-9]" | tee -a "$OUTPUT_FILE"
+        iostat -En 2>/dev/null | egrep "^c[0-9]|Size:|Vendor:" | tee -a "$OUTPUT_FILE"
     fi
     
     # ZFS Pools (primary storage on modern Solaris/Illumos)
@@ -2470,7 +2476,7 @@ analyze_storage_profile_solaris() {
         zpool list | tee -a "$OUTPUT_FILE"
         
         # Check for degraded pools
-        local degraded=$(zpool status 2>/dev/null | grep -c "DEGRADED\|FAULTED" || echo "0")
+        local degraded=$(zpool status 2>/dev/null | grep -c "DEGRADED\|FAULTED" || true)
         if (( degraded > 0 )); then
             log_bottleneck "Storage" "ZFS pool degraded or faulted" "$degraded issues" "0" "Critical"
         fi
@@ -2589,7 +2595,7 @@ analyze_storage_profile_solaris() {
     # Large directories
     echo "" | tee -a "$OUTPUT_FILE"
     echo "Top 10 Directories by Size (/):" | tee -a "$OUTPUT_FILE"
-    du -sh /* 2>/dev/null | sort -rh | head -10 | tee -a "$OUTPUT_FILE"
+    du -sk /* 2>/dev/null | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
     
     # ==========================================================================
     # ZFS PERFORMANCE - Solaris
@@ -2657,7 +2663,7 @@ analyze_databases() {
         ps -ef | egrep "[o]ra_pmon|[o]racle" | head -5 | tee -a "$OUTPUT_FILE"
         
         # Connection count
-        local oracle_conns=$(netstat -an 2>/dev/null | grep ":1521" | grep -c ESTABLISHED || echo "0")
+        local oracle_conns=$(netstat -an 2>/dev/null | grep "[.]1521[[:space:]]" | grep -c ESTABLISHED || true)
         echo "  Active Connections (port 1521): ${oracle_conns}" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2669,7 +2675,7 @@ analyze_databases() {
         ps -ef | egrep "[d]b2sysc" | head -5 | tee -a "$OUTPUT_FILE"
         
         # Connection count
-        local db2_conns=$(netstat -an 2>/dev/null | grep ":50000" | grep -c ESTABLISHED || echo "0")
+        local db2_conns=$(netstat -an 2>/dev/null | grep "[.]50000[[:space:]]" | grep -c ESTABLISHED || true)
         echo "  Active Connections (port 50000): ${db2_conns}" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2680,7 +2686,7 @@ analyze_databases() {
         echo "=== MySQL Detected ===" | tee -a "$OUTPUT_FILE"
         ps -ef | grep "[m]ysqld" | head -3 | tee -a "$OUTPUT_FILE"
         
-        local mysql_conns=$(netstat -an 2>/dev/null | grep ":3306" | grep -c ESTABLISHED || echo "0")
+        local mysql_conns=$(netstat -an 2>/dev/null | grep "[.]3306[[:space:]]" | grep -c ESTABLISHED || true)
         echo "  Active Connections (port 3306): ${mysql_conns}" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2691,7 +2697,7 @@ analyze_databases() {
         echo "=== PostgreSQL Detected ===" | tee -a "$OUTPUT_FILE"
         ps -ef | grep "[p]ostgres" | head -3 | tee -a "$OUTPUT_FILE"
         
-        local pg_conns=$(netstat -an 2>/dev/null | grep ":5432" | grep -c ESTABLISHED || echo "0")
+        local pg_conns=$(netstat -an 2>/dev/null | grep "[.]5432[[:space:]]" | grep -c ESTABLISHED || true)
         echo "  Active Connections (port 5432): ${pg_conns}" | tee -a "$OUTPUT_FILE"
     fi
     
@@ -2720,12 +2726,12 @@ analyze_network() {
     if command -v netstat >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "TCP Connection States:" | tee -a "$OUTPUT_FILE"
-        netstat -ant 2>/dev/null | awk '{print $6}' | sort | uniq -c | sort -rn | tee -a "$OUTPUT_FILE"
+        netstat -an -f inet -P tcp 2>/dev/null | awk '{print $6}' | sort | uniq -c | sort -rn | tee -a "$OUTPUT_FILE"
         
         # Check for excessive connections
-        local established=$(netstat -ant 2>/dev/null | grep -c ESTABLISHED || echo "0")
-        local time_wait=$(netstat -ant 2>/dev/null | grep -c TIME_WAIT || echo "0")
-        local close_wait=$(netstat -ant 2>/dev/null | grep -c CLOSE_WAIT || echo "0")
+        local established=$(netstat -an -f inet -P tcp 2>/dev/null | grep -c ESTABLISHED || true)
+        local time_wait=$(netstat -an -f inet -P tcp 2>/dev/null | grep -c TIME_WAIT || true)
+        local close_wait=$(netstat -an -f inet -P tcp 2>/dev/null | grep -c CLOSE_WAIT || true)
         
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Established Connections: ${established}" | tee -a "$OUTPUT_FILE"
@@ -2743,14 +2749,14 @@ analyze_network() {
         # Listening ports
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Top 10 listening ports:" | tee -a "$OUTPUT_FILE"
-        netstat -tuln 2>/dev/null | grep LISTEN | awk '{print $4}' | sed 's/.*://' | sort -n | uniq -c | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
+        netstat -an -f inet 2>/dev/null | grep LISTEN | awk '{print $4}' | sed 's/.*://' | sort -n | uniq -c | sort -rn | head -10 | tee -a "$OUTPUT_FILE"
     elif command -v ss >/dev/null 2>&1; then
         echo "" | tee -a "$OUTPUT_FILE"
         echo "TCP Connection States:" | tee -a "$OUTPUT_FILE"
         ss -ant 2>/dev/null | awk '{print $1}' | sort | uniq -c | sort -rn | tee -a "$OUTPUT_FILE"
         
-        local established=$(ss -ant 2>/dev/null | grep -c ESTAB || echo "0")
-        local time_wait=$(ss -ant 2>/dev/null | grep -c TIME-WAIT || echo "0")
+        local established=$(ss -ant 2>/dev/null | grep -c ESTAB || true)
+        local time_wait=$(ss -ant 2>/dev/null | grep -c TIME-WAIT || true)
         
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Established Connections: ${established}" | tee -a "$OUTPUT_FILE"
@@ -2884,11 +2890,11 @@ analyze_network() {
     echo "Database Port Connectivity:" | tee -a "$OUTPUT_FILE"
     
     # Check for active database connections
-    local mysql_conns=$(netstat -ant 2>/dev/null | grep ":3306" | grep ESTABLISHED | wc -l || echo "0")
-    local pg_conns=$(netstat -ant 2>/dev/null | grep ":5432" | grep ESTABLISHED | wc -l || echo "0")
-    local oracle_conns=$(netstat -ant 2>/dev/null | grep ":1521" | grep ESTABLISHED | wc -l || echo "0")
-    local mssql_conns=$(netstat -ant 2>/dev/null | grep ":1433" | grep ESTABLISHED | wc -l || echo "0")
-    local mongo_conns=$(netstat -ant 2>/dev/null | grep ":27017" | grep ESTABLISHED | wc -l || echo "0")
+    local mysql_conns=$(netstat -an -f inet -P tcp 2>/dev/null | grep "[.]3306[[:space:]]" | grep ESTABLISHED | wc -l || true)
+    local pg_conns=$(netstat -an -f inet -P tcp 2>/dev/null | grep "[.]5432[[:space:]]" | grep ESTABLISHED | wc -l || true)
+    local oracle_conns=$(netstat -an -f inet -P tcp 2>/dev/null | grep "[.]1521[[:space:]]" | grep ESTABLISHED | wc -l || true)
+    local mssql_conns=$(netstat -an -f inet -P tcp 2>/dev/null | grep "[.]1433[[:space:]]" | grep ESTABLISHED | wc -l || true)
+    local mongo_conns=$(netstat -an -f inet -P tcp 2>/dev/null | grep "[.]27017[[:space:]]" | grep ESTABLISHED | wc -l || true)
     
     echo "  MySQL (3306): ${mysql_conns} connections" | tee -a "$OUTPUT_FILE"
     echo "  PostgreSQL (5432): ${pg_conns} connections" | tee -a "$OUTPUT_FILE"
@@ -2897,7 +2903,7 @@ analyze_network() {
     echo "  MongoDB (27017): ${mongo_conns} connections" | tee -a "$OUTPUT_FILE"
     
     # Check for connection churn (high TIME_WAIT on database ports)
-    local db_time_wait=$(netstat -ant 2>/dev/null | egrep ":3306|:5432|:1521|:1433|:27017" | grep TIME_WAIT | wc -l || echo "0")
+    local db_time_wait=$(netstat -an -f inet -P tcp 2>/dev/null | egrep "[.]3306[[:space:]]|[.]5432[[:space:]]|[.]1521[[:space:]]|[.]1433[[:space:]]|[.]27017[[:space:]]" | grep TIME_WAIT | wc -l || true)
     echo "  Database TIME_WAIT: ${db_time_wait}" | tee -a "$OUTPUT_FILE"
     
     if (( db_time_wait > 1000 )); then
