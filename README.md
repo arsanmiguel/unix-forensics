@@ -60,11 +60,11 @@ Designed For:
 - AIX 7.1, 7.2, 7.3
 - HP-UX 11i v3
 - Solaris 9, 10, 11 (see Solaris notes below)
-- OpenIndiana / Illumos
+- OpenIndiana / OmniOS / Illumos
 
 I've put together an updated VirtualBox image of Solaris 9. Why? You may need to pull repositories from GitHub and it's too much of a hassle to get your systems connected. You could also just take binaries from it for non-internet connected networks. It is available on the [Releases](https://github.com/arsanmiguel/unix-forensics/releases) page (tag: `solaris9-rescue-v1.0`).
 
-Note: Solaris has been validated on 9, 10, and 11 (x86); SPARC not yet validated. AIX and HP-UX are syntactically validated but not yet tested on actual hardware; the script uses standard Unix commands and graceful degradation for missing tools. If you have access to these systems and would like to help test, please contact: adrianr.sanmiguel@gmail.com
+Note: Solaris has been validated on 9, 10, and 11 (x86); illumos validated on OpenIndiana and OmniOS (r151056). SPARC not yet validated. AIX and HP-UX are syntactically validated but not yet tested on actual hardware; the script uses standard Unix commands and graceful degradation for missing tools. If you have access to these systems and would like to help test, please contact: adrianr.sanmiguel@gmail.com
 
 ---
 
@@ -141,7 +141,7 @@ Solaris 9 (SunOS 5.9) ships with very old bash that doesn't support `pipefail`, 
 What was done for Solaris 10 (also benefits 11 and illumos):
 - `zpool` commands with `set -eu` + `pipefail`: Commands like `zpool iostat -v`, `zpool status`, and `zpool list` exit non-zero when no pools are configured. With `set -e` enabled, this killed the script silently. All `zpool` output commands now have `|| true` guards.
 
-With these changes the script runs end-to-end on Solaris 9, 10, 11, and OpenIndiana and produces a full forensics summary on all four.
+With these changes the script runs end-to-end on Solaris 9, 10, 11, OpenIndiana, and OmniOS and produces a full forensics summary on all five.
 
 Getting Solaris 10 and 11 running:  
 Validation on 10 and 11 (x86) was done on patched systems with a current-ish userland. Recommended before running the script:
@@ -154,7 +154,7 @@ Validation on 10 and 11 (x86) was done on patched systems with a current-ish use
 If the script fails on 10/11, check: (a) running with a proper bash (e.g. `bash ./invoke-unix-forensics.sh` or ensure `#!/bin/bash` resolves to pkg-installed bash), (b) missing utilities (see Troubleshooting --> Missing Utilities), and (c) that the system is patched so that any optional tools (e.g. curl for AWS) work.
 
 What was done for illumos (OpenIndiana, OmniOS, SmartOS):  
-illumos derivatives share the Solaris 10+ codebase but have their own quirks that were discovered during validation on OpenIndiana. The fixes applied benefit all illumos distributions:
+illumos derivatives share the Solaris 10+ codebase but have their own quirks that were discovered during validation on OpenIndiana and OmniOS (r151056). The fixes applied benefit all illumos distributions:
 
 - `echo | format` hangs without a tty: Same as all Solaris. The `format` command is interactive and blocks when there's no controlling terminal (common in SSH remote commands and background processes). Replaced with `iostat -En` for disk enumeration on illumos/Solaris 10+.
 - `sort -rh` (human-readable sort): illumos `sort` does not support the `-h` flag. Replaced `du -sh | sort -rh` with `du -sk | sort -rn`.
@@ -604,7 +604,7 @@ For AWS-specific issues, the tool can automatically create support cases with di
 
 Important Notes
 - This tool requires root or system administrator privileges
-- Testing Status: Solaris 9-11 x86 tested; SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
+- Testing Status: Solaris 9-11 x86 tested; illumos tested on OpenIndiana and OmniOS (r151056). SPARC should work (not yet validated). AIX/HP-UX syntactically validated only.
 - Script uses graceful degradation - continues with available tools if some are missing
 - Uses only native Unix commands (vmstat, iostat, sar, etc.)
 - Works on-premises and in cloud environments
@@ -662,7 +662,7 @@ General Guidelines:
   - Solaris 9 fixes: `grep -q`/`egrep -qi` replaced with `>/dev/null 2>&1`; `tail -n +2` replaced with `awk 'NR>1'`; `sed` `[[:space:]]` replaced with `tr` for OS detection (was silently breaking `SOLARIS_9` flag); disk enumeration uses `/dev/rdsk` + `iostat -e` instead of `iostat -En`.
   - All Solaris: Removed all `echo | format` calls (hangs without a tty on every Solaris/illumos variant, not just illumos); `du -sk /*` replaced with explicit directory list to avoid hanging on `/dev`/`/devices` pseudo-fs.
   - Solaris 10+: `zpool` output commands guarded with `|| true` so `set -eu` + `pipefail` doesn't kill the script when no pools are configured.
-  - Validated end-to-end (deep mode) on Solaris 9, 10, 11 (x86) and OpenIndiana (illumos). All four produce a complete forensics summary.
+  - Validated end-to-end (deep mode) on Solaris 9, 10, 11 (x86), OpenIndiana, and OmniOS (r151056). All five produce a complete forensics summary.
   - README: Updated compatibility table with grep, tail, sed, disk enumeration, du differences; expanded "What was done" sections.
 
 - v1.1 (February 2026)
