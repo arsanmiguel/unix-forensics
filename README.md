@@ -3,7 +3,7 @@
 <a id="overview"></a>
 ## Overview
 
-A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER. Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
+A comprehensive Bash-based diagnostic tool for Unix servers that automatically detects performance bottlenecks and can create AWS Support cases with detailed forensic data. Originally created for AWS DMS migrations - run this on your SOURCE DATABASE SERVER. If you are still using this for that purpose, be absolutely certain you run it on your source database server (the host where the database under migration actually runs)—not on a jump box, bastion, or the DMS replication instance alone. Now useful for any Unix performance troubleshooting scenario. Supports AIX, HP-UX, Solaris, and Illumos with graceful degradation when tools are unavailable.
 
 Key Features:
 - Performance forensics: CPU, memory, disk, network, database (vmstat, iostat, sar, prstat, etc.)
@@ -254,6 +254,8 @@ Output: Detailed disk I/O testing and analysis
 <summary><strong>AWS DMS Migrations</strong></summary>
 
 This tool is designed to run on your SOURCE DATABASE SERVER, not on the DMS replication instance (which is AWS-managed).
+
+If you are migrating with DMS, run these diagnostics on the **same Unix host where the source database process lives** (your SOURCE DATABASE SERVER). Running elsewhere yields misleading or empty results.
 
 What it checks for DMS by database type:
 
