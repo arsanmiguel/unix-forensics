@@ -546,7 +546,12 @@ The tool can automatically create AWS Support cases when performance issues are 
 <details>
 <summary><strong>Setup Instructions</strong></summary>
 
-Setup:
+Prerequisites:
+- AWS account with Business, Enterprise On-Ramp, or Enterprise Support plan
+- IAM user with Support API permissions
+
+Setup Steps:
+
 1. Install AWS CLI:
 ```bash
 # Solaris 11 (IPS) - run as root
@@ -561,6 +566,14 @@ On AIX, HP-UX, or older Solaris you may need to install AWS CLI from source or a
 ```bash
 aws configure
 ```
+
+Enter your:
+- AWS Access Key ID
+- AWS Secret Access Key
+- Default region (e.g., us-east-1)
+- Default output format (json)
+
+Use a named profile if you prefer: `aws configure --profile forensics` and export `AWS_PROFILE=forensics` before running the script.
 
 3. Verify Support API access:
 ```bash
@@ -584,6 +597,19 @@ Required IAM Permissions:
   ]
 }
 ```
+
+Usage:
+```bash
+# Create support case if bottlenecks found
+./invoke-unix-forensics.sh -m standard -s
+
+# Specify severity level
+./invoke-unix-forensics.sh -m deep -s -v urgent
+
+# Available severity levels: low, normal, high, urgent, critical
+```
+
+Important: AWS Support API access requires a Business, Enterprise On-Ramp, or Enterprise Support plan. If you don't have one of these plans, the script will detect the API access error, skip support case creation, and still save the diagnostic report locally.
 
 </details>
 
